@@ -16,8 +16,13 @@ std::optional<Board> BoardParser::parse(std::istream& in, std::ostream& errStrea
 
     // ── שלב 1: קריאת שורות הלוח ──
     while (std::getline(in, line)) {
-        if (line == "Commands:") break;
-        if (line == "Board:" || line.empty()) continue;
+        // Trim leading spaces for header detection
+        std::string trimmed = line;
+        while (!trimmed.empty() && trimmed[0] == ' ')
+            trimmed.erase(0, 1);
+
+        if (trimmed == "Commands:") break;
+        if (trimmed == "Board:" || line.empty()) continue;
 
         std::istringstream ss(line);
         std::string token;
@@ -25,7 +30,7 @@ std::optional<Board> BoardParser::parse(std::istream& in, std::ostream& errStrea
 
         while (ss >> token) {
             if (!PieceFactory::is_valid_token(token)) {
-                m_lastError = "ERROR UNKNOWN_TOKEN: " + token;
+                m_lastError = "ERROR UNKNOWN_TOKEN";
                 errStream << m_lastError << '\n';
                 return std::nullopt;
             }
