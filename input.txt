@@ -1,0 +1,10 @@
+Board:
+wK . . .
+wP . . .
+Commands:
+print board
+click 500 150
+click 50 50
+click 150 150
+
+print board

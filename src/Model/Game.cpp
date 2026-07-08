@@ -106,8 +106,26 @@ CommandResult Game::handle_click(int x, int y) {
         return {true, ""};
     }
 
-    // ── 4. קליק על תא אחר (ריק / אויב) ← בקש מהלך ──
+    // ── 4. קליק על תא אחר (ריק / אויב) ← בדוק חוקיות לפי MoveGenerator ──
     Piece movingPiece = *fromCell;
+
+    // הפק את כל המהלכים הגולמיים לפי MovementRules
+    auto rawMoves = movingPiece.get_raw_moves(m_board.rows(), m_board.cols());
+
+    // בדוק אם היעד נמצא ברשימת המהלכים החוקיים
+    bool isLegal = false;
+    for (const auto& m : rawMoves) {
+        if (m == clicked) {
+            isLegal = true;
+            break;
+        }
+    }
+
+    if (!isLegal) {
+        // מהלך לא חוקי — התעלם (הבחירה נשארת)
+        return {true, ""};
+    }
+
     m_board.remove(from);
     movingPiece.set_pos(clicked);
     movingPiece.mark_moved();
@@ -156,8 +174,8 @@ std::string Game::board_string() const {
                     oss << token;
                 }
             } else {
-                // תא ריק: ".." או "[..]" (האחרון לא סביר)
-                oss << "..";
+                // תא ריק: "." או "[.]" (האחרון לא סביר)
+                oss << ".";
             }
         }
         oss << '\n';

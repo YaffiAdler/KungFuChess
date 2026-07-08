@@ -35,3 +35,4 @@ ZERO_CHECK*
 # Misc
 .DS_Store
 Thumbs.db
+.claude/

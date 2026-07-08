@@ -176,10 +176,58 @@ void printBoard(const Board& board) {
             if (cell.has_value()) {
                 std::cout << cell->token();
             } else {
-                std::cout << "..";
+                std::cout << ".";
             }
         }
         std::cout << '\n';
+    }
+}
+
+// ============================================================
+//  isLegalMove — בדיקת חוקיות תנועה לפי צורת הכלי
+//  מינימלי: King(1), Queen(slide), Rook(slide straight),
+//           Bishop(slide diag), Knight(L), Pawn(forward 1-2)
+// ============================================================
+bool isLegalMove(Position from, Position to, char symbol, PieceColor color,
+                 bool hasMoved, int numRows, int numCols) {
+    int dr = to.row - from.row;
+    int dc = to.col - from.col;
+    int absDr = (dr < 0) ? -dr : dr;
+    int absDc = (dc < 0) ? -dc : dc;
+
+    switch (symbol) {
+    case 'K':  // King — step 1 in any direction
+        return absDr <= 1 && absDc <= 1 && (absDr + absDc > 0);
+
+    case 'Q':  // Queen — slide: straight or diagonal
+        if (dr == 0 && dc == 0) return false;
+        if (dr == 0) return true;           // horizontal slide
+        if (dc == 0) return true;           // vertical slide
+        if (absDr == absDc) return true;    // diagonal slide
+        return false;
+
+    case 'R':  // Rook — slide: only straight
+        if (dr == 0 && dc == 0) return false;
+        return (dr == 0 || dc == 0);
+
+    case 'B':  // Bishop — slide: only diagonal
+        if (dr == 0 && dc == 0) return false;
+        return (absDr == absDc);
+
+    case 'N':  // Knight — jump: L-shape
+        return (absDr == 2 && absDc == 1) || (absDr == 1 && absDc == 2);
+
+    case 'P':  // Pawn — step forward (1 or 2 if hasn't moved)
+    {
+        int forward = (color == PieceColor::White) ? 1 : -1;
+        if (dc != 0) return false;  // pawn doesn't move sideways
+        if (dr == forward) return true;
+        if (dr == 2 * forward && !hasMoved) return true;
+        return false;
+    }
+
+    default:
+        return false;
     }
 }
 
@@ -234,8 +282,12 @@ int main() {
                 continue;
             }
 
-            // מהלך
+            // מהלך — בדוק חוקיות תנועה לפי צורת הכלי
             Piece moving = *fromCell;
+            if (!isLegalMove(from, clicked, moving.symbol, moving.color,
+                             moving.hasMoved, board.rows(), board.cols())) {
+                continue;  // מהלך לא חוקי — התעלם
+            }
             board.remove(from);
             moving.pos = clicked;
             moving.hasMoved = true;
