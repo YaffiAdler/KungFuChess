@@ -52,19 +52,31 @@ void Board::remove(Position pos) {
 //  עזר: בדיקת גבולות
 // ─────────────────────────────────────────────
 bool Board::is_valid_position(Position p) const noexcept {
-    return p.is_valid(m_rows, m_cols);
+    return p.row >= 0 && p.row < m_rows && p.col >= 0 && p.col < m_cols;
 }
 
 // ─────────────────────────────────────────────
 //  to_string — ייצוג טקסטואלי
 // ─────────────────────────────────────────────
-std::string Board::to_string() const {
+std::string Board::to_string(const Position* selected) const {
     std::ostringstream oss;
     for (int r = 0; r < m_rows; ++r) {
         for (int c = 0; c < m_cols; ++c) {
             if (c > 0) oss << ' ';
             const auto& cell = at(r, c);
-            oss << (cell.has_value() ? cell->to_token() : ".");
+            if (cell.has_value()) {
+                std::string token = cell->to_token();
+                bool isSelected = selected
+                    && selected->row == r
+                    && selected->col == c;
+                if (isSelected) {
+                    oss << '[' << token << ']';
+                } else {
+                    oss << token;
+                }
+            } else {
+                oss << ".";
+            }
         }
         oss << '\n';
     }

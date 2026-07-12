@@ -1,5 +1,13 @@
 #include "MoveGenerator.h"
 
+namespace {
+    // בדיקת גבולות — הלוח הוא שמכיר את הגבולות, לא Position.
+    // לכן הבדיקה נעשית כפונקציה פנימית כאן.
+    [[nodiscard]] inline bool in_bounds(int row, int col, int numRows, int numCols) noexcept {
+        return row >= 0 && row < numRows && col >= 0 && col < numCols;
+    }
+}
+
 std::vector<Position> MoveGenerator::generate(
     const MovementRule& rule,
     Position from, PieceColor color,
@@ -17,14 +25,16 @@ std::vector<Position> MoveGenerator::generate(
         // ─── Step: צעד אחד (או שניים לרגלי) ───
         case MovePattern::Step: {
             // צעד ראשון
-            Position one{from.row + dr, from.col + dc};
-            if (one.is_valid(numRows, numCols)) {
-                moves.push_back(one);
+            int r1 = from.row + dr;
+            int c1 = from.col + dc;
+            if (in_bounds(r1, c1, numRows, numCols)) {
+                moves.push_back(Position{r1, c1});
                 // צעד שני — רק אם maxSteps >= 2 והכלי לא זז
                 if (rule.maxSteps >= 2 && !hasMoved) {
-                    Position two{from.row + 2*dr, from.col + 2*dc};
-                    if (two.is_valid(numRows, numCols)) {
-                        moves.push_back(two);
+                    int r2 = from.row + 2*dr;
+                    int c2 = from.col + 2*dc;
+                    if (in_bounds(r2, c2, numRows, numCols)) {
+                        moves.push_back(Position{r2, c2});
                     }
                 }
             }
@@ -34,20 +44,22 @@ std::vector<Position> MoveGenerator::generate(
         // ─── Slide: החלקה עד קצה הלוח ───
         case MovePattern::Slide: {
             for (int step = 1; ; ++step) {
-                Position t{from.row + dr*step, from.col + dc*step};
-                if (!t.is_valid(numRows, numCols)) break;
-                moves.push_back(t);
+                int r = from.row + dr*step;
+                int c = from.col + dc*step;
+                if (!in_bounds(r, c, numRows, numCols)) break;
+                moves.push_back(Position{r, c});
                 // Slide ממשיך עד חסימה פיזית — אבל פה אנחנו מייצרים
-                // את כל התאים האפשריים. החסימה מטופלת ברמת הלוח/Game.
+                // את כל התאים האפשריים. החסימה מטופלת ברמת הלוח/GameEngine.
             }
             break;
         }
 
         // ─── Jump: קפיצה קבועה ───
         case MovePattern::Jump: {
-            Position t{from.row + dr, from.col + dc};
-            if (t.is_valid(numRows, numCols)) {
-                moves.push_back(t);
+            int r = from.row + dr;
+            int c = from.col + dc;
+            if (in_bounds(r, c, numRows, numCols)) {
+                moves.push_back(Position{r, c});
             }
             break;
         }

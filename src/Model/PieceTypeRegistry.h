@@ -1,5 +1,7 @@
 #pragma once
 #include "PieceTypeDefinition.h"
+#include "PieceTypeRegistry.h"
+#include "MovementRule.h"
 #include <unordered_map>
 #include <string>
 #include <memory>

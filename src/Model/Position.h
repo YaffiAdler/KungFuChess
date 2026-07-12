@@ -1,17 +1,26 @@
 #pragma once
-#include <cstddef>
-#include <cstddef>
 
+#include <string>
+
+// מייצג מיקום לוגי על הלוח (שורה ועמודה).
+// Position הוא Value Object ואינו מכיר את גודל הלוח,
+// כללי התנועה או קואורדינטות פיקסלים.
 struct Position final {
-    int row;
-    int col;
+    int row; // אינדקס השורה
+    int col; // אינדקס העמודה
 
-        [[nodiscard]] bool operator==(const Position& other) const noexcept {
+    // השוואת שני מיקומים.
+    // מחזיר true אם גם השורה וגם העמודה זהות.
+    [[nodiscard]]
+    bool operator==(const Position& other) const noexcept {
         return row == other.row && col == other.col;
     }
 
-    [[nodiscard]] bool is_valid(int num_rows, int num_cols) const noexcept {
-        return row >= 0 && row < num_rows && col >= 0 && col < num_cols;
+    // מחזיר ייצוג קריא של המיקום.
+    // דוגמה: "(2, 5)"
+    [[nodiscard]]
+    std::string to_string() const {
+        return "(" + std::to_string(row) + ", " + std::to_string(col) + ")";
     }
-    
 };
+

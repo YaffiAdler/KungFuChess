@@ -1,5 +1,4 @@
 #pragma once
-
 #include "Piece.h"
 #include "Position.h"
 #include <vector>
@@ -35,8 +34,8 @@ public:
     /// מעבר על כל התאים (עבור UI / Parser)
     [[nodiscard]] const auto& cells() const noexcept { return m_cells; }
 
-    /// הדפסת לוח
-    [[nodiscard]] std::string to_string() const;
+    /// הדפסת לוח. אם selected לא nullptr, התא המתאים יסומן ב-[XY].
+    [[nodiscard]] std::string to_string(const Position* selected = nullptr) const;
 
 private:
     int m_rows;

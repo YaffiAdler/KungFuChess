@@ -15,7 +15,7 @@ public:
     [[nodiscard]] PieceColor       get_color()  const noexcept { return m_color; }
     [[nodiscard]] const std::string& type_id()  const noexcept { return m_typeId; }
     [[nodiscard]] Position         get_pos()    const noexcept { return m_pos; }
-    [[nodiscard]] bool             has_moved()  const noexcept { return m_hasMoved; }
+    // [[nodiscard]] bool             has_moved()  const noexcept { return m_hasMoved; }
 
     /// סימבול הכלי מתוך ה-Registry ('K', 'Q', ...)
     [[nodiscard]] char get_symbol() const;
