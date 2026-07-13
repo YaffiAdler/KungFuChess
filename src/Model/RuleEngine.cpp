@@ -1,5 +1,6 @@
 #include "RuleEngine.h"
 #include <algorithm>
+#include <iostream>
 
 MoveValidation RuleEngine::validate_move(Position from, Position to) const noexcept {
     // ── 1. מקור מחוץ ללוח ──
@@ -33,9 +34,17 @@ MoveValidation RuleEngine::validate_move(Position from, Position to) const noexc
 
     // ── 6. שאילת כלל תנועה — האצלה ל-MoveGenerator ──
     auto rawMoves = piece.get_raw_moves(m_board->rows(), m_board->cols());
+    std::cerr << "DEBUG RuleEngine: from=" << from.row << "," << from.col
+              << " to=" << to.row << "," << to.col
+              << " rawMoves.size=" << rawMoves.size();
+    for (const auto& m : rawMoves) {
+        std::cerr << " [" << m.row << "," << m.col << "]";
+    }
+    std::cerr << std::endl;
     bool found = std::find(rawMoves.begin(), rawMoves.end(), to) != rawMoves.end();
 
     if (!found) {
+        std::cerr << "DEBUG RuleEngine: to NOT in rawMoves — illegal_piece_move" << std::endl;
         return {false, "illegal_piece_move"};
     }
 

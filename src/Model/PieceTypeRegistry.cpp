@@ -34,7 +34,7 @@ void PieceTypeRegistry::clear() {
 //  6 כלי השחמט הסטנדרטיים, כל אחד עם MovementRules.
 // ─────────────────────────────────────────────
 void PieceTypeRegistry::register_standard() {
-    using enum MovePattern;
+    // using enum MovePattern;
 
     // King — צעד אחד ב-8 כיוונים
     register_type(PieceTypeDefinition{
@@ -76,12 +76,12 @@ void PieceTypeRegistry::register_standard() {
         })}
     });
 
-    // Pawn — צעד קדימה (maxSteps=2 מאפשר שני צעדים בהתחלה)
+    // Pawn — maxSteps=2 מאפשר צעד כפול מהשורה ההתחלתית
     register_type(PieceTypeDefinition{
         "pawn", 'P',
-        { MovementRule::step({
-            {-1,0}   // קדימה — הכיוון בפועל נקבע לפי צבע ב-MoveGenerator
-        })}
+        {
+            MovementRule{MovePattern::Step, {{-1, 0}}, 2, false},  // קדימה — maxSteps=2, לא יכול להכות
+            MovementRule{MovePattern::Step, {{-1,-1},{-1,1}}, 1, true}  // הכאה אלכסונית
+        }
     });
-    // שימו לב: maxSteps=2 (ברירת מחדל) → MoveGenerator יוסיף צעד שני רק לרגלי שלא זז
 }

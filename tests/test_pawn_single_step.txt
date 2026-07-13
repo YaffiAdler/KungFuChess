@@ -1,0 +1,10 @@
+Board:
+. . . .
+. . . .
+. . . .
+wP . . .
+Commands:
+click 50 350
+click 50 250
+wait 1000
+print board

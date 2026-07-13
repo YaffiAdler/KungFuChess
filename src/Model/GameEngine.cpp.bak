@@ -1,0 +1,227 @@
+#include "GameEngine.h"
+#include "RuleEngine.h"
+
+// ─────────────────────────────────────────────
+//  Constructor
+// ─────────────────────────────────────────────
+GameEngine::GameEngine(Board board, GameConfig config)
+    : m_board(std::move(board)), m_config(config) {}
+
+// ─────────────────────────────────────────────
+//  select — בחירת כלי
+// ─────────────────────────────────────────────
+bool GameEngine::select(Position pos) {
+    // Don't allow selection while a piece is in motion
+    if (m_arbiter.hasActiveMotion()) return false;
+
+    if (!m_board.is_valid_position(pos)) return false;
+
+    const auto& cell = m_board.at(pos);
+    if (!cell.has_value()) return false;
+
+    m_selectedPos = pos;
+    return true;
+}
+
+// ─────────────────────────────────────────────
+//  request_move — אימות + התחלת Motion (ללא שינוי לוח)
+// ─────────────────────────────────────────────
+MoveResult GameEngine::request_move(Position from, Position to) {
+    // ── 0. סיום משחק — דחה לפני RuleEngine ──
+    if (m_gameOver) {
+        return {false, "game_over"};
+    }
+
+    // ── 0.5. תנועה פעילה — דחה (תנועה אחת בכל רגע) ──
+    if (m_arbiter.hasActiveMotion()) {
+        return {false, "active_motion"};
+    }
+
+    // ── 1. אימות חוקיות — האצלה ל-RuleEngine ──
+    RuleEngine ruleEngine(m_board);
+    auto validation = ruleEngine.validate_move(from, to);
+
+    if (!validation.is_valid) {
+        return {false, validation.reason};
+    }
+
+    // ── 2. בדיקת אכילה (האם יעד תפוס ע"י אויב) ──
+    const auto& fromCell = m_board.at(from);
+    Piece movingPiece = *fromCell;
+    const auto& targetCell = m_board.at(to);
+    bool wasCapture = targetCell.has_value()
+                      && targetCell->get_color() != movingPiece.get_color();
+
+    // ── 3. התחלת Motion ב-RealTimeArbiter (ללא שינוי לוח!) ──
+    bool started = m_arbiter.startMotion(from, to, movingPiece, m_board);
+    if (!started) {
+        return {false, "active_motion"};
+    }
+
+    // ✦ הבחירה נשארת על הכלי (לוגית — הלוח לא השתנה)
+    // m_selectedPos נשאר from, אבל נסמן שהשחקן "שלח" את הכלי
+    // לעת עתה נשאיר את הבחירה על ה-from עד ההגעה.
+    // (בעתיד, אפשר לאפשר בחירה חופשית בזמן תנועה.)
+
+    // לא מעבירים תור כאן! התור עובר רק בהגעה (advance_clock).
+
+    return {true, "ok", wasCapture, false};  // gameOver=false — עדיין לא הגענו
+}
+
+// ─────────────────────────────────────────────
+//  advance_clock — קידום זמן, טיפול בהגעה
+// ─────────────────────────────────────────────
+void GameEngine::advance_clock(std::chrono::milliseconds ms) {
+    m_gameClock += ms;
+
+    // ── אם אין תנועה פעילה — אין מה לעשות ──
+    if (!m_arbiter.hasActiveMotion()) {
+        return;
+    }
+
+
+    // ── קידום זמן ב-RealTimeArbiter ──
+    auto tickResult = m_arbiter.tick(static_cast<int>(ms.count()));
+
+    // ── אם התנועה עוד לא הסתיימה — צא ──
+    if (!tickResult.completed) {
+        return;
+    }
+    // ── הגעה! עדכן את הלוח ──
+    const Motion* motion = m_arbiter.activeMotion();
+    if (!motion) return;  // שמירה
+
+    Position from = motion->from;
+    Position to   = motion->to;
+
+    // 1. הסר כלי מתא המקור
+    m_board.remove(from);
+
+    // 2. אכול כלי אויב ביעד, אם קיים
+    bool wasCapture = false;
+    PieceColor eatenColor = PieceColor::White;  // dummy
+    const auto& targetCell = m_board.at(to);
+    if (targetCell.has_value()) {
+        wasCapture = true;
+        eatenColor = targetCell->get_color();
+        m_board.remove(to);
+    }
+
+    // 3. הצב את הכלי הנע ביעד
+    Piece arrivingPiece = motion->piece;
+    arrivingPiece.set_pos(to);
+    arrivingPiece.mark_moved();
+
+    // ── 3.5 קידום רגלי למלכה — הגעה לשורה האחרונה ──
+    // White pawns start at row 6 and promote at row 0
+    // Black pawns start at row 1 and promote at row 7
+    if (arrivingPiece.type_id() == "pawn") {
+        int lastRow = (arrivingPiece.get_color() == PieceColor::White) ? 0 : (m_board.rows() - 1);
+        if (to.row == lastRow) {
+            arrivingPiece = Piece(arrivingPiece.get_color(), "queen", to);
+            arrivingPiece.mark_moved();
+        }
+    }
+
+    m_board.place(std::move(arrivingPiece));
+
+    // ✦ עדכון בחירה למיקום החדש
+    m_selectedPos = to;
+
+    // 4. בדוק תנאי סיום — מלך הוכה?
+    bool gameOver = false;
+    if (wasCapture) {
+        bool whiteKingFound = false;
+        bool blackKingFound = false;
+        for (int r = 0; r < m_board.rows(); ++r) {
+            for (int c = 0; c < m_board.cols(); ++c) {
+                const auto& cell = m_board.at(r, c);
+                if (cell.has_value() && cell->type_id() == "king") {
+                    if (cell->get_color() == PieceColor::White) whiteKingFound = true;
+                    else blackKingFound = true;
+                }
+            }
+        }
+        if (!whiteKingFound || !blackKingFound) {
+            gameOver = true;
+            m_gameOver = true;
+            m_winner = !whiteKingFound ? PieceColor::Black : PieceColor::White;
+        }
+    }
+
+    // 5. נקה את התנועה הפעילה
+    m_arbiter.cancelMotion();  // מנקה את ה-motion הפנימי
+
+    // 6. No turn switch on arrival — Kung-Fu Chess has no cooldown.
+    // Players can move their pieces at any time; the only constraint
+    // is that a piece in motion cannot be redirected.
+}
+
+// ─────────────────────────────────────────────
+//  move_selected_to — עוטף request_move עם לוגיקת בחירה
+// ─────────────────────────────────────────────
+MoveResult GameEngine::move_selected_to(Position target) {
+    // ── 0. אין בחירה ──
+    if (!m_selectedPos.has_value()) {
+        return {false, "No piece selected"};
+    }
+
+    // ── 0.5. יש תנועה פעילה — אי אפשר לבחור/להזיז כלי אחר ──
+    if (m_arbiter.hasActiveMotion()) {
+        return {false, "active_motion"};
+    }
+
+    Position from = *m_selectedPos;
+    const auto& fromCell = m_board.at(from);
+
+    // שמירה: בחירה מצביעה על תא ריק ← בטל
+    if (!fromCell.has_value()) {
+        m_selectedPos.reset();
+        return {false, ""};
+    }
+
+    // ── 1. קליק על אותו תא — התעלם ──
+    if (target == from) {
+        return {false, ""};
+    }
+
+    // ── 2. כלי ידידותי ביעד ← החלף בחירה (לפני RuleEngine —
+    //        זה לא מהלך, זה שינוי בחירה) ──
+    PieceColor selectedColor = fromCell->get_color();
+    const auto& targetCell = m_board.at(target);
+    if (targetCell.has_value() && targetCell->get_color() == selectedColor) {
+        m_selectedPos = target;
+        return {true, ""};
+    }
+
+    // ── 3. האצלה ל-request_move ──
+    return request_move(from, target);
+}
+
+// ─────────────────────────────────────────────
+//  snapshot
+// ─────────────────────────────────────────────
+GameSnapshot GameEngine::snapshot() const {
+    return GameSnapshot{
+        m_board,
+        m_selectedPos,
+        m_gameClock,
+        m_currentTurn,
+        m_gameOver,
+        m_winner,
+        m_arbiter.motion()   // העתקת ה-optional<Motion>
+    };
+}
+
+// ─────────────────────────────────────────────
+//  restore
+// ─────────────────────────────────────────────
+void GameEngine::restore(const GameSnapshot& snap) {
+    m_board        = snap.board;
+    m_selectedPos  = snap.selectedPos;
+    m_gameClock    = snap.gameClock;
+    m_currentTurn  = snap.currentTurn;
+    m_gameOver     = snap.gameOver;
+    m_winner       = snap.winner;
+    m_arbiter.setMotion(snap.activeMotion);
+}
