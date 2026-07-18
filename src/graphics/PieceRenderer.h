@@ -2,39 +2,53 @@
 
 #include "../logic/Model/Piece.h"
 #include "../logic/Model/Board.h"
+#include "../logic/Model/Position.h"
 #include "img.hpp"
 #include <string>
 #include <unordered_map>
+#include <vector>
+#include <optional>
 
-/// טעינה וציור של כלי שחמט על המסך.
-/// משתמש במחלקת Img (מעטפת OpenCV) לטעינת sprites ולציור.
-///
-/// SRP: תפקיד יחיד — תרגום Piece → Sprite וציור על מסך.
+/// מידע אנימציית Sprite לכל state של כלי.
+struct SpriteAnimData final {
+    std::vector<Img> sprites;       // 1.png, 2.png, ..., 5.png
+    int     frames_per_sec  = 6;
+    bool    is_loop         = true;
+    int     frameCount      = 0;    // כמה sprites נטענו
+    int     currentIndex    = 0;    // איזה sprite מוצג עכשיו
+    int     msPerFrame      = 166;  // 1000 / frames_per_sec
+    int     accumulatedMs   = 0;    // accumulative time for frame switching
+};
+
+/// טעינה וציור של כלי שחמט על המסך עם אנימציית Sprite.
+/// SRP: תפקיד יחיד — תרגום Piece → Sprite (לפי PieceState) + אנימציה.
 /// אינו מכיר לוגיקת משחק, חוקים, או GameEngine.
 class PieceRenderer final {
 public:
-    /// @param piecesRootDir  תיקיית השורש של pieces (למשל "src/graphics/pieces2")
-    /// @param cellWidth      רוחב תא בפיקסלים
-    /// @param cellHeight     גובה תא בפיקסלים
     PieceRenderer(const std::string& piecesRootDir, int cellWidth, int cellHeight);
 
-    /// עדכון גודל תא — נקרא כשהלוח מוכן ויש לנו מידות מדויקות
     void set_cell_size(int width, int height);
 
-    /// ציור כלי בודד על המסך
+    /// קידום אנימציות — מחליף sprite index לפי time elapsed
+    void advance_animations(int deltaMs);
+
+    /// ציור כלי בודד לפי מיקום לוגי
     void draw_piece(Img& screen, const Piece& piece) const;
 
+    /// ציור כלי במיקום פיקסלים חופשי (עבור אינטרפולציה)
+    void draw_piece_at(Img& screen, const Piece& piece, int x, int y) const;
+
     /// ציור כל הכלים מהלוח על המסך
-    void draw_all_pieces(Img& screen, const Board& board) const;
+    /// @param skipPos  אם מספקים, מדלג על התא הזה (כשכלי בתנועה — לא לצייר אותו בלוח)
+    void draw_all_pieces(Img& screen, const Board& board,
+                         std::optional<Position> skipPos = std::nullopt) const;
 
 private:
-    /// המרת Piece לקוד תיקייה (למשל King White → "KW")
-    static std::string piece_code(const Piece& piece);
+    /// טוען (או מחזיר מ-cache) את אנימציית ה-sprites של code/state
+    SpriteAnimData& get_or_load(const std::string& code,
+                                 const std::string& stateName) const;
 
-    /// טעינה עצלה — טוען מהדיסק רק בפעם הראשונה
-    Img& get_or_load(const std::string& code) const;
-
-    mutable std::unordered_map<std::string, Img> m_cache;
+    mutable std::unordered_map<std::string, SpriteAnimData> m_cache;
     std::string m_rootDir;
     int m_cellWidth;
     int m_cellHeight;

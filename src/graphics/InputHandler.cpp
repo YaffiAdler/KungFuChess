@@ -1,69 +1,52 @@
 #include "InputHandler.h"
+#include "../logic/Controller/Controller.h"
+#include "../logic/Model/GameEngine.h"
 #include <iostream>
 
 // ─────────────────────────────────────────────
 //  Constructor
 // ─────────────────────────────────────────────
-InputHandler::InputHandler(const PixelMapper& mapper)
-    : m_mapper(mapper)
+InputHandler::InputHandler(Controller& controller) noexcept
+    : m_controller(controller)
 {}
 
 // ─────────────────────────────────────────────
-//  register_click
+//  register_click — נקרא מ-mouse callback
 // ─────────────────────────────────────────────
 void InputHandler::register_click(int x, int y) {
-    m_clickX.store(x);
-    m_clickY.store(y);
-    m_hasClick.store(true);
+    m_clickX   = x;
+    m_clickY   = y;
+    m_hasClick = true;
 }
 
 // ─────────────────────────────────────────────
-//  process_click — עיבוד קליק → פעולת משחק
+//  process_click — delegate ל-Controller
 // ─────────────────────────────────────────────
 bool InputHandler::process_click(GameEngine& engine) {
-    if (!m_hasClick.exchange(false)) return false;
+    if (!m_hasClick) return false;
+    m_hasClick = false;
 
-    int x = m_clickX.exchange(-1);
-    int y = m_clickY.exchange(-1);
-
-    // במצב Waiting — מתעלמים מקליקים
-    if (engine.state() != GameState::Playing) return true;
-
-    auto cell = m_mapper.to_cell(x, y,
-                                  engine.board().rows(),
-                                  engine.board().cols());
-    if (!cell.has_value()) return true;  // מחוץ ללוח
-
-    auto result = engine.move_selected_to(*cell);
-    if (!result.success && !result.message.empty()) {
-        std::cout << "Move failed: " << result.message << std::endl;
+    std::string msg = m_controller.handle_click(m_clickX, m_clickY, engine);
+    if (!msg.empty() && msg != "ok" && msg != "selected" && msg != "deselected") {
+        std::cout << "Move failed: " << msg << std::endl;
     }
 
     return true;
 }
 
 // ─────────────────────────────────────────────
-//  process_key — עיבוד מקש מקלדת
+//  process_key — delegate כל המקשים ל-Controller
 // ─────────────────────────────────────────────
 bool InputHandler::process_key(int key, GameEngine& engine) {
-    // ESC או 'q' — יציאה
-    if (key == 27 || key == 'q' || key == 'Q') {
-        return false;  // signal to exit loop
-    }
-
-    // ENTER — התחלת משחק
-    if (key == 13 && engine.state() == GameState::Waiting) {
-        engine.start_game();
-    }
-
-    return true;  // continue loop
+    if (key == -1) return true;  // אין מקש — המשך לולאה
+    return m_controller.handle_key(key, engine);
 }
 
 // ─────────────────────────────────────────────
-//  flush_click
+//  flush — איפוס מצב קליקים
 // ─────────────────────────────────────────────
-void InputHandler::flush_click() {
-    m_hasClick.store(false);
-    m_clickX.store(-1);
-    m_clickY.store(-1);
+void InputHandler::flush() {
+    m_hasClick = false;
+    m_clickX   = -1;
+    m_clickY   = -1;
 }

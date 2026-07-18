@@ -54,6 +54,7 @@ public:
      * Get the underlying OpenCV Mat
      */
     const cv::Mat& get_mat() const { return img; }
+    cv::Mat& get_mat() { return img; }
     
     /**
      * Check if image is loaded

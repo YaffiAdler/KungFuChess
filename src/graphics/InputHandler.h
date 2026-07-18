@@ -1,39 +1,35 @@
 #pragma once
 
-#include "../logic/Model/PixelMapper.h"
-#include "../logic/Model/GameEngine.h"
-#include "../logic/Model/Position.h"
-#include <atomic>
-#include <optional>
+class Controller;
+class GameEngine;
 
-/// טיפול בקלט משתמש: עכבר ומקלדת.
+/// טיפול באירועי קלט — מקלדת ועכבר.
 ///
-/// SRP: תפקיד יחיד — ללכוד אירועי קלט ולתרגם אותם לפעולות GameEngine.
-///     - עכבר: בחירה / הזזה (רק במצב Playing)
-///     - מקלדת: Enter = התחלה, q/ESC = יציאה
+/// SRP: תפקיד יחיד — קבלת אירועים גולמיים והעברתם ל-Controller.
+/// חסר לוגיקת משחק, חסר PixelMapper, חסרה קבלת החלטות.
 class InputHandler final {
 public:
-    InputHandler(const PixelMapper& mapper);
+    explicit InputHandler(Controller& controller) noexcept;
+
+    /// טיפול במקש מקלדת.
+    /// @return true = המשך לולאה, false = צא
+    [[nodiscard]] bool process_key(int key, GameEngine& engine);
 
     /// רישום קליק עכבר (נקרא מ-mouse callback)
     void register_click(int x, int y);
 
-    /// עיבוד קליק ממתין, אם יש. מחזיר true אם היה קליק וטופל.
-    /// @return true = קליק טופל, false = לא היה קליק
-    bool process_click(GameEngine& engine);
+    /// טיפול בקליק ממתין, אם יש.
+    /// @return true = היה קליק וטופל, false = לא היה קליק
+    [[nodiscard]] bool process_click(GameEngine& engine);
 
-    /// עיבוד מקש מקלדת. מחזיר true אם יש להמשיך את הלולאה.
-    /// @return true = המשך, false = צא מהלולאה
-    bool process_key(int key, GameEngine& engine);
-
-    /// איפוס מצב קליקים (ללא עיבוד)
-    void flush_click();
+    /// איפוס מצב קליקים
+    void flush();
 
 private:
-    const PixelMapper& m_mapper;
+    Controller& m_controller;
 
     // קליקים ממתינים (נכתבים מ-callback, נקראים מה-main loop)
-    std::atomic<int>  m_clickX{-1};
-    std::atomic<int>  m_clickY{-1};
-    std::atomic<bool> m_hasClick{false};
+    int  m_clickX   = -1;
+    int  m_clickY   = -1;
+    bool m_hasClick = false;
 };

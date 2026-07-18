@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <functional>
 
 // מייצג מיקום לוגי על הלוח (שורה ועמודה).
 // Position הוא Value Object ואינו מכיר את גודל הלוח,
@@ -23,4 +24,14 @@ struct Position final {
         return "(" + std::to_string(row) + ", " + std::to_string(col) + ")";
     }
 };
+
+// hash support for std::unordered_map<Position, ...>
+namespace std {
+template<>
+struct hash<Position> {
+    size_t operator()(const Position& p) const noexcept {
+        return (static_cast<size_t>(p.row) << 16) ^ static_cast<size_t>(p.col);
+    }
+};
+}
 

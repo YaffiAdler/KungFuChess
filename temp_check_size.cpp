@@ -6,7 +6,7 @@ int main() {
     std::cout << "board.png: " << img.cols << "x" << img.rows << " channels=" << img.channels() << std::endl;
 
     // check a sprite
-    cv::Mat sprite = cv::imread("src/graphics/pieces1/RW/states/idle/sprites/1.png", cv::IMREAD_UNCHANGED);
+    cv::Mat sprite = cv::imread("src/graphics/pieces2/RW/states/idle/sprites/1.png", cv::IMREAD_UNCHANGED);
     if (sprite.empty()) { std::cerr << "Cannot load sprite" << std::endl; return 1; }
     std::cout << "sprite: " << sprite.cols << "x" << sprite.rows << " channels=" << sprite.channels() << std::endl;
 

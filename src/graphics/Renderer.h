@@ -3,13 +3,14 @@
 #include "../logic/Model/GameConfig.h"
 #include "../logic/Model/GameEngine.h"
 #include "../logic/Model/Position.h"
+#include "../logic/Model/RealTimeArbiter.h"
 #include "PieceRenderer.h"
 #include "img.hpp"
 #include <string>
 
 /// ציור מלא של המסך: לוח + כלים + overlay מצב + סימון בחירה.
 ///
-/// SRP: תפקיד יחיד — לתרגם את מצב ה-GameEngine לתמונה על המסך.
+/// SRP: תפקיד יחיד — לתרגם את מצב ה-GameEngine + Arbiter לתמונה על המסך.
 /// אינו מכיר קלט, לולאת משחק, או OpenCV windows.
 class Renderer final {
 public:
@@ -25,14 +26,25 @@ public:
     void init(const GameEngine& engine);
 
     /// ציור מלא של פריים אחד על המסך
-    void render_frame(Img& screen, const GameEngine& engine);
+    /// @param screen buffer המסך
+    /// @param engine מנוע המשחק
+    /// @param arbiter מנהל התנועות (לאינטרפולציה)
+    void render_frame(Img& screen, const GameEngine& engine,
+                      const RealTimeArbiter& arbiter);
 
     /// גישה ל-PieceRenderer (לעדכון גודל תא וכו')
     PieceRenderer& piece_renderer() { return m_pieceRenderer; }
 
+    /// קידום אנימציות Sprite
+    void tick_animations(int deltaMs) { m_pieceRenderer.advance_animations(deltaMs); }
+
 private:
     void draw_waiting_overlay(Img& screen);
+    void draw_gameover_overlay(Img& screen, const GameEngine& engine);
     void draw_selection_marker(Img& screen, Position pos, int cellW, int cellH);
+
+    /// ציור כלי בתנועה — מיקום אינטרפולציה בין from ל-to
+    void draw_motion_piece(Img& screen, const Motion& motion);
 
     Img           m_boardImage;
     PieceRenderer m_pieceRenderer;

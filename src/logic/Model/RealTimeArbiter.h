@@ -4,7 +4,7 @@
 #include "PieceColor.h"
 #include "Board.h"
 #include <optional>
-#include <cstdlib>  // abs
+#include <cstdlib> // abs
 
 /// אובייקט תנועה פעילה — מייצג כלי בתנועה בין שני תאים.
 /// בבעלות RealTimeArbiter, לא הלוח.
@@ -12,15 +12,16 @@ struct Motion final {
     Position from;
     Position to;
     Piece   piece;      // העתק של הכלי הנע (כולל צבע, סוג, מיקום)
-    int     totalMs;    // זמן כולל לתנועה (N תאים × 1000ms)
+    int     totalMs;    // זמן כולל לתנועה (distance × msPerCell)
     int     elapsedMs;  // זמן שחלף עד כה
+    int     distance   = 0;    // מרחק צ'בישב (מספר תאים)
+    int     msPerCellUsed = 0; // msPerCell שחושב מ-speed_m_per_sec
 };
 
 /// תוצאת קידום זמן — מה קרה ב-tick האחרון.
-struct ArbiterTickResult final {
-    bool                        completed  = false;  // תנועה הסתיימה (הגעה ליעד)
-    bool                        wasCapture = false;  // היה כלי אויב ביעד
-    std::optional<PieceColor>   kingEaten;           // מלך נאכל (game over)
+struct ArbiterTickResult {
+    bool completed  = false;  // תנועה הסתיימה (הגעה ליעד)
+    bool wasCapture = false;  // היה כלי אויב ביעד
 };
 
 /// ארביטר תנועה בזמן אמת.
@@ -29,41 +30,41 @@ struct ArbiterTickResult final {
 /// RealTimeArbiter אינו מעדכן את הלוח, אינו בודק חוקיות שחמט,
 /// אינו מטפל בקליקים או ברינדור.
 ///
-/// הוא מקבל פקודות מהלך שכבר אומתו, ומנהל תנועות פעילות ככל שהזמן מתקדם.
-/// GameEngine משתמש בתוצאות tick() כדי לעדכן את הלוח.
+/// הוא מקבל פקודת מהלך (שכבר אומתה כ-valid) ומנהל את משך הזמן שלה.
+/// כשה-tick מסמן completed, ה-Controller מתזמן commit_move בלוח.
 class RealTimeArbiter final {
 public:
     RealTimeArbiter() = default;
 
-    /// התחלת תנועה חדשה. מחזיר false אם כבר יש תנועה פעילה.
-    /// @param from תא מקור
-    /// @param to   תא יעד
-    /// @param piece העתק של הכלי הנע
-    /// @param board הלוח (לקריאה בלבד — לבדיקת אכילה)
-    [[nodiscard]] bool startMotion(Position from, Position to,
-                                   Piece piece, const Board& board);
+    /// התחלת תנועה חדשה.
+    /// @param from  מיקום מקור
+    /// @param to    מיקום יעד
+    /// @param piece העתק הכלי הנע
+    /// @param msPerCell זמן לצעד-תא (מ-GameConfig)
+    /// @return true אם התנועה התחילה, false אם כבר יש תנועה פעילה
+    bool startMotion(Position from, Position to, Piece piece, int msPerCell);
 
-    /// קידום זמן מדומה.
-    /// @param ms אלפיות שנייה לקידום
-    /// @return תוצאת tick — האם התנועה הסתיימה, אכילה, מלך נאכל
+    /// התחלת תנועה עם distance ו-msPerCell ידניים (מתוך speed_m_per_sec).
+    /// @param from     מיקום מקור
+    /// @param to       מיקום יעד
+    /// @param piece    העתק הכלי הנע
+    /// @param distance מרחק צ'בישב (לחישוב totalMs)
+    /// @param msPerCell זמן לצעד-תא (מחושב מ-speed_m_per_sec)
+    /// @return true אם התנועה התחילה
+    bool startMotionWithDistance(Position from, Position to, Piece piece,
+                                  int distance, int msPerCell);
+
+    /// קידום זמן — צובר elapsedMs.
+    /// @param ms  אלפיות שנייה שחלפו
+    /// @return תוצעת tick — completed, wasCapture
     ArbiterTickResult tick(int ms);
 
-    /// האם יש תנועה פעילה כרגע?
+    /// בדיקה: האם יש תנועה פעילה?
     [[nodiscard]] bool hasActiveMotion() const noexcept {
         return m_activeMotion.has_value();
     }
 
-    /// גישה קריאה-בלבד לתנועה הפעילה (לתצוגה / אינטרפולציה).
-    /// מחזיר nullptr אם אין תנועה פעילה.
-    [[nodiscard]] const Motion* activeMotion() const noexcept {
-        return m_activeMotion.has_value() ? &*m_activeMotion : nullptr;
-    }
-
-    /// ביטול תנועה פעילה — מחזיר את הכלי למצבו המקורי.
-    /// @return הכלי שבוטלה תנועתו (להחזרה ללוח ב-Undo)
-    Piece cancelMotion();
-
-    /// גישה ישירה ל-optional motion (עבור snapshot/restore)
+    /// גישה ישירה ל-optional motion (עבור Renderer — אינטרפולציה)
     [[nodiscard]] const std::optional<Motion>& motion() const noexcept {
         return m_activeMotion;
     }
@@ -76,7 +77,7 @@ public:
 private:
     std::optional<Motion> m_activeMotion;
 
-    /// חישוב מרחק צ'בישב — max(|dr|, |dc|)
+    /// חישוב מרחק צ'בישב: max(|dr|, |dc|)
     static int chebyshevDistance(Position a, Position b) noexcept {
         int dr = std::abs(a.row - b.row);
         int dc = std::abs(a.col - b.col);

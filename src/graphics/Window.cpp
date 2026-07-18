@@ -1,6 +1,7 @@
 #include "Window.h"
 #include <opencv2/highgui.hpp>
 #include <iostream>
+#include <chrono>
 
 // ─────────────────────────────────────────────
 //  mouse_callback — static, מעביר ל-InputHandler
@@ -22,8 +23,8 @@ Window::Window(GameConfig config)
     , m_renderer("src/graphics/board.png",
                  "src/graphics/pieces2",
                  config.cellSizePixels, config.cellSizePixels)
-    , m_pixelMapper(config)
-    , m_input(m_pixelMapper)
+    , m_controller(config)
+    , m_input(m_controller)
     , m_windowName("Kung-Fu Chess")
 {}
 
@@ -39,7 +40,7 @@ void Window::set_engine(GameEngine* engine) {
 }
 
 // ─────────────────────────────────────────────
-//  run — לולאת אירועים בלבד
+//  run — לולאת אירועים + tick
 // ─────────────────────────────────────────────
 void Window::run() {
     if (!m_engine) {
@@ -50,32 +51,42 @@ void Window::run() {
     // אתחול Renderer — טוען לוח ומתאים גדלי תאים
     m_renderer.init(*m_engine);
 
-    // המסך מתחיל כעותק של תמונת הלוח
-    m_screen.read("src/graphics/board.png");
-
     // חלון + callback עם userdata = &m_input
     cv::namedWindow(m_windowName, cv::WINDOW_NORMAL);
     cv::setMouseCallback(m_windowName, mouse_callback, &m_input);
 
     // ציור התחלתי
-    m_renderer.render_frame(m_screen, *m_engine);
+    m_renderer.render_frame(m_screen, *m_engine, m_controller.arbiter());
     cv::imshow(m_windowName, m_screen.get_mat());
 
     // ═══ לולאה ראשית ═══
-    while (true) {
-        int key = cv::waitKey(30);
+    using clock = std::chrono::steady_clock;
+    auto lastFrameTime = clock::now();
 
-        // מקלדת
+    while (true) {
+        int key = cv::waitKey(1);  // 1ms poll — tick handles timing
+
+        // חישוב delta
+        auto now   = clock::now();
+        auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastFrameTime);
+        lastFrameTime = now;
+        int deltaMs = static_cast<int>(delta.count());
+        if (deltaMs < 1) deltaMs = 1;  // floor safeguard
+
+        // ── 1. Tick — קידום זמן תנועה + state machines + אנימציה ──
+        m_controller.tick(deltaMs, *m_engine);
+        m_renderer.tick_animations(deltaMs);
+
+        // ── 2. קלט — מקלדת ──
         if (!m_input.process_key(key, *m_engine)) {
             break;  // ESC / q
         }
 
-        // עכבר
+        // ── 3. קלט — עכבר ──
         m_input.process_click(*m_engine);
 
-        // ציור מחדש
-        m_screen.read("src/graphics/board.png");
-        m_renderer.render_frame(m_screen, *m_engine);
+        // ── 4. ציור ──
+        m_renderer.render_frame(m_screen, *m_engine, m_controller.arbiter());
         cv::imshow(m_windowName, m_screen.get_mat());
     }
 }
