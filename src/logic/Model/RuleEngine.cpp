@@ -4,6 +4,28 @@
 #include <algorithm>
 #include <vector>
 
+// ─────────────────────────────────────────────
+// check_game_over — בדיקת סיום: איזה צבע איבד מלך
+// ─────────────────────────────────────────────
+std::optional<PieceColor> RuleEngine::check_game_over(const Board& board) noexcept {
+    bool whiteKingFound = false;
+    bool blackKingFound = false;
+
+    for (int r = 0; r < board.rows(); ++r) {
+        for (int c = 0; c < board.cols(); ++c) {
+            const auto& cell = board.at(r, c);
+            if (cell.has_value() && cell->type_id() == "king") {
+                if (cell->get_color() == PieceColor::White) whiteKingFound = true;
+                else blackKingFound = true;
+            }
+        }
+    }
+
+    if (!whiteKingFound) return PieceColor::Black;
+    if (!blackKingFound) return PieceColor::White;
+    return std::nullopt;
+}
+
 namespace {
 
 struct RuleMatch {
@@ -63,6 +85,9 @@ MoveValidation RuleEngine::validate_move(Position from, Position to) const noexc
 
     const Piece& piece = *srcCell;
 
+if (piece.get_state() == PieceState::short_rest || piece.get_state() == PieceState::long_rest)
+    return {false, "piece_at_rest"};
+
     // ── 3. לאותו תא ──
     if (from == to) return {false, "illegal_piece_move"};
 
@@ -105,7 +130,7 @@ MoveValidation RuleEngine::validate_move(Position from, Position to) const noexc
     }
     // רגלי אלכסון לריק: יש גם כלל הכאה וגם כלל ללא הכאה, אבל התנועה אלכסונית
     // ולכן ה-matched-rule היחיד הוא canCapture=true
-    bool isPawn = (matchingRules.size() > 1);  // לרגלי יש 2 כללים
+    bool isPawn = (piece.type_id() == "pawn");  // רגלי — הכלי היחיד עם כללי הכאה/ללא-הכאה נפרדים
     if (!isCapture && isPawn && hasCaptureRule && !hasNoCaptureRule) {
         // רגלי: מהלך אלכסוני לריק — אסור
         return {false, "illegal_piece_move"};
@@ -114,6 +139,6 @@ MoveValidation RuleEngine::validate_move(Position from, Position to) const noexc
     // ── 7. חסימות — PieceRules ──
     if (!PieceRules::is_path_clear(*m_board, piece, from, to))
         return {false, PieceRules::last_block_reason()};
-
+ 
     return {true, "ok"};
 }

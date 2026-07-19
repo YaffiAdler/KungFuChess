@@ -1,28 +1,36 @@
 #pragma once
-
 #include "../logic/Model/Piece.h"
 #include "../logic/Model/Board.h"
 #include "../logic/Model/Position.h"
 #include "img.hpp"
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <optional>
 
-/// מידע אנימציית Sprite לכל state של כלי.
-struct SpriteAnimData final {
-    std::vector<Img> sprites;       // 1.png, 2.png, ..., 5.png
-    int     frames_per_sec  = 6;
-    bool    is_loop         = true;
-    int     frameCount      = 0;    // כמה sprites נטענו
-    int     currentIndex    = 0;    // איזה sprite מוצג עכשיו
-    int     msPerFrame      = 166;  // 1000 / frames_per_sec
-    int     accumulatedMs   = 0;    // accumulative time for frame switching
+/// Sprite frames shared across all pieces of same type+state.
+/// Loaded once per (code, stateName), never mutated after loading.
+struct SpriteAnimFrames final {
+    std::vector<Img> sprites;
+    int frameCount = 0;
+    int msPerFrame = 166; // 1000 / frames_per_sec
+    bool is_loop = true;
+};
+
+/// Per-instance animation — one per (position, stateName) pair.
+/// Each piece tracks its own current frame independently.
+struct AnimState final {
+    int currentIndex = 0;
+    int accumulatedMs = 0;
+    int msPerFrame = 166;
+    int frameCount = 0;
+    bool is_loop = true;
 };
 
 /// טעינה וציור של כלי שחמט על המסך עם אנימציית Sprite.
-/// SRP: תפקיד יחיד — תרגום Piece → Sprite (לפי PieceState) + אנימציה.
-/// אינו מכיר לוגיקת משחק, חוקים, או GameEngine.
+/// Sprite frames SHARED across all pieces of same type+state.
+/// Animation index is PER CELL+STATE — each piece runs independently.
 class PieceRenderer final {
 public:
     PieceRenderer(const std::string& piecesRootDir, int cellWidth, int cellHeight);
@@ -33,22 +41,34 @@ public:
     void advance_animations(int deltaMs);
 
     /// ציור כלי בודד לפי מיקום לוגי
-    void draw_piece(Img& screen, const Piece& piece) const;
+    void draw_piece(Img& screen, const Piece& piece);
 
     /// ציור כלי במיקום פיקסלים חופשי (עבור אינטרפולציה)
-    void draw_piece_at(Img& screen, const Piece& piece, int x, int y) const;
+    void draw_piece_at(Img& screen, const Piece& piece, int x, int y);
 
     /// ציור כל הכלים מהלוח על המסך
-    /// @param skipPos  אם מספקים, מדלג על התא הזה (כשכלי בתנועה — לא לצייר אותו בלוח)
+    /// @param skipPositions סט מיקומים לדלג עליהם (כלים בתנועה — יצוירו ע"י draw_motion_piece)
     void draw_all_pieces(Img& screen, const Board& board,
-                         std::optional<Position> skipPos = std::nullopt) const;
+                         const std::unordered_set<Position>& skipPositions);
 
 private:
-    /// טוען (או מחזיר מ-cache) את אנימציית ה-sprites של code/state
-    SpriteAnimData& get_or_load(const std::string& code,
-                                 const std::string& stateName) const;
+    /// מפתח אנימציה: "row,col/stateName"
+    static std::string anim_key(Position pos, const std::string& stateName);
 
-    mutable std::unordered_map<std::string, SpriteAnimData> m_cache;
+    /// Lazy-load shared SpriteAnimFrames (cached)
+    SpriteAnimFrames& get_frames(const std::string& code,
+                                  const std::string& stateName);
+
+    /// Get-or-create per-instance AnimState
+    AnimState& get_anim_state(Position pos,
+                               const std::string& stateName,
+                               const SpriteAnimFrames& frames);
+
+    // Cache: shared sprite frames (key = "code/stateName")
+    mutable std::unordered_map<std::string, SpriteAnimFrames> m_framesCache;
+    // Per-instance animation state (key = "row,col/stateName")
+    mutable std::unordered_map<std::string, AnimState> m_animStates;
+
     std::string m_rootDir;
     int m_cellWidth;
     int m_cellHeight;

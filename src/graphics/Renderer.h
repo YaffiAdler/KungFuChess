@@ -14,10 +14,10 @@
 /// אינו מכיר קלט, לולאת משחק, או OpenCV windows.
 class Renderer final {
 public:
-    /// @param boardImagePath  נתיב לתמונת הלוח (למשל "src/graphics/board.png")
-    /// @param piecesRootDir   תיקיית sprites של הכלים
-    /// @param cellWidth       רוחב תא ראשוני (יעודכן אוטומטית כשהלוח נטען)
-    /// @param cellHeight      גובה תא ראשוני
+    /// @param boardImagePath נתיב לתמונת הלוח (למשל "src/graphics/board.png")
+    /// @param piecesRootDir תיקיית sprites של הכלים
+    /// @param cellWidth רוחב תא ראשוני (יעודכן אוטומטית כשהלוח נטען)
+    /// @param cellHeight גובה תא ראשוני
     Renderer(const std::string& boardImagePath,
              const std::string& piecesRootDir,
              int cellWidth, int cellHeight);
@@ -32,22 +32,22 @@ public:
     void render_frame(Img& screen, const GameEngine& engine,
                       const RealTimeArbiter& arbiter);
 
-    /// גישה ל-PieceRenderer (לעדכון גודל תא וכו')
-    PieceRenderer& piece_renderer() { return m_pieceRenderer; }
+    /// גישה ל-PieceRenderer
+    [[nodiscard]] PieceRenderer& piece_renderer() noexcept { return m_pieceRenderer; }
 
-    /// קידום אנימציות Sprite
-    void tick_animations(int deltaMs) { m_pieceRenderer.advance_animations(deltaMs); }
+    /// קידום אנימציות ספרייט
+    void tick_animations(int deltaMs) {
+        m_pieceRenderer.advance_animations(deltaMs);
+    }
 
 private:
+    void draw_motion_piece(Img& screen, const Motion& motion);
     void draw_waiting_overlay(Img& screen);
     void draw_gameover_overlay(Img& screen, const GameEngine& engine);
     void draw_selection_marker(Img& screen, Position pos, int cellW, int cellH);
 
-    /// ציור כלי בתנועה — מיקום אינטרפולציה בין from ל-to
-    void draw_motion_piece(Img& screen, const Motion& motion);
-
-    Img           m_boardImage;
-    PieceRenderer m_pieceRenderer;
-    int           m_cellWidth;
-    int           m_cellHeight;
+    Img            m_boardImage;
+    PieceRenderer  m_pieceRenderer;
+    int m_cellWidth;
+    int m_cellHeight;
 };

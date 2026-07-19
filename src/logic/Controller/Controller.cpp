@@ -17,10 +17,10 @@ void Controller::cancel_selection() noexcept {
 }
 
 // ─────────────────────────────────────────────
-// handle_click — לוגיקת בחירה מלאה + Arbiter
+// handle_click — לוגיקת בחירה מלאה + Arbiter (רב-תנועתי)
 // ─────────────────────────────────────────────
 std::string Controller::handle_click(int x, int y, GameEngine& engine) {
-    // ── 0. המשחק פעיל ──
+    // ── 0. המשחק פעיל? ──
     if (engine.state() != GameState::Playing) {
         return "";
     }
@@ -45,7 +45,7 @@ std::string Controller::handle_click(int x, int y, GameEngine& engine) {
     // ── 3. קליק בתוך הלוח ──
     if (!m_selected.has_value()) {
         // ── קליק ראשון: ניסיון בחירה ──
-        const auto& pieceCell = engine.board().at(*cell);
+        auto& pieceCell = engine.board().at(*cell);
 
         // התעלם מתאים ריקים
         if (!pieceCell.has_value()) {
@@ -63,28 +63,28 @@ std::string Controller::handle_click(int x, int y, GameEngine& engine) {
     // ── קליק שני: ניסיון מהלך ──
     Position source = *m_selected;
 
-    // קליק על אותו תא — התעלם
-    if (*cell == source) {
+    // קליק על אותו תא — קפיצה במקום
+    if (source == *cell) {
+        if (engine.startJump(source)) {
+            m_selected.reset();
+            engine.deselect();
+            return "jump";
+        }
         return "";
     }
 
-    // בדיקת busy — תנועה פעילה
-    if (engine.is_busy()) {
-        return "motion_in_progress";
-    }
-
-    // בדיקת החלפת בחירה (כלי ידידותי ביעד)
+    // בדיקת כלי באותו צבע ביעד — החלפת בחירה
     const auto& sourcePiece = engine.board().at(source);
     const auto& targetPiece = engine.board().at(*cell);
     if (targetPiece.has_value() && sourcePiece.has_value() &&
         targetPiece->get_color() == sourcePiece->get_color()) {
-        m_selected = *cell;
         engine.deselect();
         engine.select(*cell);
-        return "selected";
+        m_selected = *cell;
+        return "reselect";
     }
 
-    // ── אימות המהלך ──
+    // אימות המהלך
     auto validation = engine.validate_move(source, *cell);
     if (!validation.is_valid) {
         engine.deselect();
@@ -92,9 +92,9 @@ std::string Controller::handle_click(int x, int y, GameEngine& engine) {
         return validation.reason;
     }
 
-    // ── התחלת תנועה ב-Arbiter ──
-    // 1. engine.start_piece_motion — קובע state=move, מחזיר msPerCell
-    int msPerCell = engine.start_piece_motion(source, *cell);
+    // ── התחלת תנועה ב-Arbiter (ללא הגבלת busy) ──
+    // 1. engine.startMotion — קובע state=move, מחזיר msPerCell
+    int msPerCell = engine.startMotion(source, *cell);
     if (msPerCell <= 0) {
         engine.deselect();
         m_selected.reset();
@@ -108,7 +108,7 @@ std::string Controller::handle_click(int x, int y, GameEngine& engine) {
         m_selected.reset();
         return "source_empty";
     }
-    Piece movingPiece = *srcCell;  // העתק
+    Piece movingPiece = *srcCell; // העתק
 
     // 3. חישוב מרחק
     int distance = std::max(
@@ -116,18 +116,11 @@ std::string Controller::handle_click(int x, int y, GameEngine& engine) {
         std::abs(source.col - cell->col));
 
     // 4. התחלת תנועה ב-Arbiter
-    bool started = m_arbiter.startMotionWithDistance(
+    m_arbiter.startMotionWithDistance(
         source, *cell,
         std::move(movingPiece),
         distance, msPerCell
     );
-
-    if (!started) {
-        // לא אמור לקרות — busy כבר נקבע
-        engine.deselect();
-        m_selected.reset();
-        return "arbiter_busy";
-    }
 
     // 5. ניקוי בחירה
     engine.deselect();
@@ -140,7 +133,7 @@ std::string Controller::handle_click(int x, int y, GameEngine& engine) {
 // handle_key — מקשים: ESC, ENTER, q
 // ─────────────────────────────────────────────
 bool Controller::handle_key(int key, GameEngine& engine) {
-    if (key == -1) return true;  // אין מקש — המשך לולאה
+    if (key == -1) return true; // אין מקש — המשך לולאה
 
     // ESC או q — צא
     if (key == 27 || key == 'q' || key == 'Q') {
@@ -159,22 +152,8 @@ bool Controller::handle_key(int key, GameEngine& engine) {
 }
 
 // ─────────────────────────────────────────────
-// tick — קידום state machines + Arbiter, commit בהגעה
+// tick — האצלה מלאה ל-GameEngine
 // ─────────────────────────────────────────────
 void Controller::tick(int deltaMs, GameEngine& engine) {
-    // 1. State machines (long_rest/short_rest → idle)
-    engine.tick_state_machines(deltaMs);
-
-    // 2. Arbiter motion
-    if (!m_arbiter.hasActiveMotion()) {
-        return;
-    }
-
-    ArbiterTickResult result = m_arbiter.tick(deltaMs);
-
-    if (result.completed) {
-        const auto& motion = *m_arbiter.motion();
-        engine.commit_move_with_state(motion.from, motion.to);
-        m_arbiter.setMotion(std::nullopt);
-    }
+    engine.tick(deltaMs, m_arbiter);
 }

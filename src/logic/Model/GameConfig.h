@@ -7,8 +7,9 @@ struct GameConfig final {
     int boardCols          = 8;     // רוחב הלוח
     int cellSizePixels     = 100;   // גודל תא בפיקסלים (לפקודת click)
     int msPerCell          = 1000;  // אלפיות שנייה לצעד-תא (fallback)
-
+    double pixelsPerMeter = 100.0;
     // ── State durations ──
-    int longRestDurationMs  = 3000;   // זמן מנוחה ארוכה (long_rest → idle)
+    int jumpDurationMs      = 800;    // זמן קפיצה במקום (jump → short_rest)
+    int longRestDurationMs  = 2000;   // זמן מנוחה ארוכה (long_rest → idle)
     int shortRestDurationMs = 1500;   // זמן מנוחה קצרה (short_rest → idle)
 };

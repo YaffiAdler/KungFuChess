@@ -64,7 +64,7 @@ void Img::draw_on(Img& other_img, int x, int y) {
         std::vector<cv::Mat> roiChannels(4);
         cv::split(roiFloat, roiChannels);
 
-        cv::Mat alpha = srcChannels[3]; // already 0..1 after convertTo with alpha in [0,255]
+        cv::Mat alpha = srcChannels[3] / 255.0; // normalize alpha to [0, 1]
 
         for (int c = 0; c < 3; ++c) {
             roiChannels[c] = srcChannels[c].mul(alpha) + roiChannels[c].mul(cv::Scalar(1.0) - alpha);

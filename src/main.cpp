@@ -19,7 +19,8 @@ int main() {
 
         // ── 3. יצירת GameEngine ──
         GameConfig config;  // default: 8×8, 100px
-        GameEngine engine(std::move(*boardOpt), config);
+        GameEngine engine(std::move(*boardOpt), config,
+                          "src/graphics/pieces2");
 
         // ── 4. יצירת חלון גרפי והרצה ──
         Window window(config);

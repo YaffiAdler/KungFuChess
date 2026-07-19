@@ -1,53 +1,59 @@
 #include "RealTimeArbiter.h"
+#include <algorithm>
 
 // ─────────────────────────────────────────────
-// startMotion — התחלת תנועה (גרסה קיימת)
+// startMotion — התחלת תנועה (ללא הגבלה)
 // ─────────────────────────────────────────────
-bool RealTimeArbiter::startMotion(Position from, Position to,
-                                  Piece piece, int msPerCell) {
-    if (m_activeMotion.has_value()) return false;
-
+void RealTimeArbiter::startMotion(Position from, Position to,
+                                   Piece piece, int msPerCell) {
     int distance = chebyshevDistance(from, to);
     int totalMs  = distance * msPerCell;
 
-    m_activeMotion = Motion{from, to, std::move(piece),
-                            totalMs, 0, distance, msPerCell};
-    return true;
+    m_activeMotions.push_back(Motion{from, to, std::move(piece),
+                                      totalMs, 0, distance, msPerCell});
 }
 
 // ─────────────────────────────────────────────
 // startMotionWithDistance — גרסה עם distance חיצוני
 // ─────────────────────────────────────────────
-bool RealTimeArbiter::startMotionWithDistance(Position from, Position to,
+void RealTimeArbiter::startMotionWithDistance(Position from, Position to,
                                                Piece piece,
                                                int distance, int msPerCell) {
-    if (m_activeMotion.has_value()) return false;
-
     int totalMs = distance * msPerCell;
-    m_activeMotion = Motion{from, to, std::move(piece),
-                            totalMs, 0, distance, msPerCell};
-    return true;
+    m_activeMotions.push_back(Motion{from, to, std::move(piece),
+                                      totalMs, 0, distance, msPerCell});
 }
 
 // ─────────────────────────────────────────────
-// tick — קידום זמן
+// tick — קידום זמן לכל התנועות, איסוף מסתיימות
 // ─────────────────────────────────────────────
-ArbiterTickResult RealTimeArbiter::tick(int ms) {
-    ArbiterTickResult result;
+std::vector<Motion> RealTimeArbiter::tick(int ms) {
+    std::vector<Motion> completed;
 
-    if (!m_activeMotion.has_value()) {
-        return result;  // אין תנועה פעילה — כלום לא קרה
+    // קידום זמן לכל התנועות
+    for (auto& motion : m_activeMotions) {
+        motion.elapsedMs += ms;
+        if (motion.elapsedMs >= motion.totalMs) {
+            motion.elapsedMs = motion.totalMs; // clamp
+        }
     }
 
-    m_activeMotion->elapsedMs += ms;
+    // איסוף תנועות שהסתיימו (שמירת סדר מקורי)
+    // שימוש ב-stable_partition: כל התנועות שהסתיימו עוברות להתחלה
+    auto firstActive = std::stable_partition(
+        m_activeMotions.begin(),
+        m_activeMotions.end(),
+        [](const Motion& m) { return m.elapsedMs >= m.totalMs; }
+    );
 
-    // בדיקת סיום
-    if (m_activeMotion->elapsedMs >= m_activeMotion->totalMs) {
-        result.completed = true;
+    // העברת התנועות שהושלמו לווקטור התוצאה
+    completed.assign(
+        std::make_move_iterator(m_activeMotions.begin()),
+        std::make_move_iterator(firstActive)
+    );
 
-        // clamp elapsed ל-totalMs (למקרה ש-tick גדול)
-        m_activeMotion->elapsedMs = m_activeMotion->totalMs;
-    }
+    // מחיקת התנועות שהושלמו מהווקטור הפעיל
+    m_activeMotions.erase(m_activeMotions.begin(), firstActive);
 
-    return result;
+    return completed;
 }
