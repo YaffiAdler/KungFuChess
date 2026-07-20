@@ -2,6 +2,7 @@
 #include "Board.h"
 #include "GameConfig.h"
 #include "GameSnapshot.h"
+#include "GameState.h"
 #include "MoveExecutor.h"
 #include "PieceStateMachine.h"
 #include "Position.h"
@@ -18,13 +19,6 @@ struct MoveResult final {
     bool capture = false;      // האם המהלך כלל הכאה
     bool gameOver = false;     // המשחק הסתיים אחרי המהלך
     bool motionStarted = false; // true = Arbiter התחיל תנועה (הלוח עוד לא עודכן)
-};
-
-/// מצבי המשחק הראשיים
-enum class GameState {
-    Waiting,   // טרם התחיל — כלים מוצגים, ממתינים לפקודת התחלה
-    Playing,   // משחק פעיל
-    GameOver   // הסתיים
 };
 
 /// ניהול מצב המשחק — Application Service / Orchestrator.
@@ -84,6 +78,9 @@ public:
     [[nodiscard]] bool is_game_over() const noexcept { return m_state == GameState::GameOver; }
     [[nodiscard]] std::optional<PieceColor> winner() const noexcept { return m_winner; }
 
+    // ─── Move History ───
+    [[nodiscard]] const std::vector<MoveRecord>& move_history() const noexcept { return m_moveHistory; }
+
     // ─── Snapshots ───
     [[nodiscard]] GameSnapshot snapshot() const;
     void restore(const GameSnapshot& snap);
@@ -99,4 +96,5 @@ private:
     std::optional<PieceColor> m_winner;
     GameState               m_state = GameState::Waiting;
     std::optional<Position> m_jumpingPos;   // מעקב אחרי קפיצה פעילה
+    std::vector<MoveRecord> m_moveHistory;   // היסטוריית מהלכים שהושלמו
 };

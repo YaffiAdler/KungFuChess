@@ -2,6 +2,8 @@
 #include "Board.h"
 #include "Position.h"
 #include "PieceColor.h"
+#include "GameState.h"
+#include "MoveRecord.h"
 #include "RealTimeArbiter.h"
 #include <chrono>
 #include <optional>
@@ -14,4 +16,7 @@ struct GameSnapshot final {
     std::vector<Motion>     arbiterMotions;
     std::chrono::milliseconds gameClock{0};
     PieceColor currentTurn = PieceColor::White;
+    GameState state = GameState::Waiting;
+    std::optional<PieceColor> winner;
+    std::vector<MoveRecord> moveHistory;
 };

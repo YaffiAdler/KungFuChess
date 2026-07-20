@@ -12,4 +12,5 @@ struct GameConfig final {
     int jumpDurationMs      = 800;    // זמן קפיצה במקום (jump → short_rest)
     int longRestDurationMs  = 2000;   // זמן מנוחה ארוכה (long_rest → idle)
     int shortRestDurationMs = 1500;   // זמן מנוחה קצרה (short_rest → idle)
+    int sidePanelWidth      = 200;   // רוחב פאנל צדדי (להצגת היסטוריית מהלכים)
 };

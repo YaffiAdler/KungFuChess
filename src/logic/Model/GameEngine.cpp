@@ -17,6 +17,7 @@ GameEngine::GameEngine(Board board, GameConfig config,
 // ─────────────────────────────────────────────
 void GameEngine::start_game() noexcept {
     if (m_state == GameState::Waiting) {
+        m_moveHistory.clear();
         m_state = GameState::Playing;
     }
 }
@@ -59,10 +60,35 @@ MoveResult GameEngine::commit_move(Position from, Position to) {
         return {false, "game_not_active"};
     }
 
+    // תיעוד הכלי שהוכה (אם יש) לפני הביצוע
+    std::optional<Piece> capturedPiece;
+    const auto& targetCell = m_board.at(to);
+    if (targetCell.has_value()) {
+        capturedPiece = *targetCell;
+    }
+
+    // תיעוד הכלי המזיז לפני ההסרה מהלוח
+    const auto& fromCell = m_board.at(from);
+    if (!fromCell.has_value()) {
+        return {false, "source_empty"};
+    }
+    Piece movingPiece = *fromCell;          // העתק
+    PieceColor player = movingPiece.get_color();
+
     auto result = m_moveExecutor.execute(from, to);
     if (!result.success) {
         return {false, "execute_failed"};
     }
+
+    // תיעוד המהלך בהיסטוריה
+    m_moveHistory.push_back(MoveRecord{
+        from,
+        to,
+        std::move(movingPiece),
+        result.capture,
+        capturedPiece,
+        player
+    });
 
     if (result.gameOver) {
         m_state = GameState::GameOver;
@@ -128,10 +154,28 @@ bool GameEngine::tick(int deltaMs, RealTimeArbiter& arbiter) {
 
     // 3. ביצוע כל תנועה שהסתיימה
     for (auto& motion : completedMotions) {
+        // תיעוד הכלי שהוכה (אם יש) לפני הביצוע
+        std::optional<Piece> capturedPiece;
+        const auto& targetCell = m_board.at(motion.to);
+        if (targetCell.has_value()) {
+            capturedPiece = *targetCell;
+        }
+
+        PieceColor player = motion.piece.get_color();
         auto execResult = m_moveExecutor.execute(motion.from, motion.to);
 
-        // 4. State transition + timer
+        // 4. State transition + timer + תיעוד מהלך
         if (execResult.success) {
+            // תיעוד המהלך בהיסטוריה
+            m_moveHistory.push_back(MoveRecord{
+                motion.from,
+                motion.to,
+                std::move(motion.piece),
+                execResult.capture,
+                capturedPiece,
+                player
+            });
+
             auto& destCell = m_board.at(motion.to);
             if (destCell.has_value()) {
                 m_stateMachine.completeMotion(
@@ -203,7 +247,10 @@ GameSnapshot GameEngine::snapshot() const {
         m_selectedPos,
         {},  // arbiterMotions — empty; Controller/Window fills from arbiter
         m_gameClock,
-        m_currentTurn
+        m_currentTurn,
+        m_state,
+        m_winner,
+        m_moveHistory
     };
 }
 
@@ -215,7 +262,8 @@ void GameEngine::restore(const GameSnapshot& snap) {
     m_selectedPos = snap.selectedPos;
     m_gameClock = snap.gameClock;
     m_currentTurn = snap.currentTurn;
-    m_state = GameState::Playing;
-    m_winner.reset();
+    m_state = snap.state;
+    m_winner = snap.winner;
+    m_moveHistory = snap.moveHistory;
     m_jumpingPos.reset();
 }

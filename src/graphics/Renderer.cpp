@@ -1,10 +1,27 @@
 #include "Renderer.h"
 #include "../logic/Model/PieceColor.h"
+#include "../logic/Model/MoveRecord.h"
 #include <opencv2/imgproc.hpp>
+#include <sstream>
+#include <iomanip>
+#include <ctime>
 
 namespace {
 
 std::string board_image_path() { return "src/graphics/board.png"; }
+
+/// פירמוט חותמת זמן: HH:MM:SS
+std::string format_time(const std::chrono::system_clock::time_point& tp) {
+    auto t = std::chrono::system_clock::to_time_t(tp);
+    std::tm tm_buf;
+    localtime_s(&tm_buf, &t);
+    std::ostringstream oss;
+    oss << std::setfill('0')
+        << std::setw(2) << tm_buf.tm_hour << ":"
+        << std::setw(2) << tm_buf.tm_min  << ":"
+        << std::setw(2) << tm_buf.tm_sec;
+    return oss.str();
+}
 
 } // anonymous namespace
 
@@ -22,26 +39,48 @@ Renderer::Renderer(const std::string& boardImagePath,
 }
 
 // ─────────────────────────────────────────────
-// init — טעינת לוח + התאמת גדלי תאים
+// init — טעינת לוח + התאמת גדלי תאים + פאנלים
 // ─────────────────────────────────────────────
-void Renderer::init(const GameEngine& engine) {
+void Renderer::init(const GameSnapshot& snapshot, int panelWidth) {
     int boardW = m_boardImage.get_mat().cols;
     int boardH = m_boardImage.get_mat().rows;
-    int rows = engine.board().rows();
-    int cols = engine.board().cols();
+    int rows = snapshot.board.rows();
+    int cols = snapshot.board.cols();
 
     m_cellWidth  = boardW / cols;
     m_cellHeight = boardH / rows;
+    m_panelWidth = panelWidth;
     m_pieceRenderer.set_cell_size(m_cellWidth, m_cellHeight);
+    m_pieceRenderer.set_offset_x(m_panelWidth);
+}
+
+// ─────────────────────────────────────────────
+// capture_timestamps — תיעוד חותמת זמן למהלכים חדשים
+// ─────────────────────────────────────────────
+void Renderer::capture_timestamps(const std::vector<MoveRecord>& history) {
+    while (m_moveTimestamps.size() < history.size()) {
+        m_moveTimestamps.push_back(format_time(std::chrono::system_clock::now()));
+    }
 }
 
 // ─────────────────────────────────────────────
 // render_frame — ציור פריים שלם (רב-תנועתי)
 // ─────────────────────────────────────────────
-void Renderer::render_frame(Img& screen, const GameEngine& engine,
+void Renderer::render_frame(Img& screen, const GameSnapshot& snapshot,
                              const RealTimeArbiter& arbiter) {
-    // 0. ניקוי מסך — העתקת תמונת הלוח (מוחק ציור קודם)
-    m_boardImage.get_mat().copyTo(screen.get_mat());
+    int boardW = m_boardImage.get_mat().cols;
+    int boardH = m_boardImage.get_mat().rows;
+    int totalW = boardW + 2 * m_panelWidth;
+
+    // 0. צור canvas מורחב עם רקע כהה
+    cv::Mat canvas(boardH, totalW, CV_8UC3, cv::Scalar(35, 35, 35));
+
+    // העתקת תמונת הלוח למרכז (אופסט = m_panelWidth)
+    cv::Mat boardRegion = canvas(cv::Rect(m_panelWidth, 0, boardW, boardH));
+    m_boardImage.get_mat().copyTo(boardRegion);
+
+    // העתקת ה-canvas ל-screen
+    canvas.copyTo(screen.get_mat());
 
     // 1. בניית סט מיקומים לדילוג (כלים בתנועה — מקורות)
     std::unordered_set<Position> skipPositions;
@@ -50,7 +89,7 @@ void Renderer::render_frame(Img& screen, const GameEngine& engine,
     }
 
     // 2. ציור כלים מהלוח (מדלג על תאי מקור של כלים בתנועה)
-    m_pieceRenderer.draw_all_pieces(screen, engine.board(), skipPositions);
+    m_pieceRenderer.draw_all_pieces(screen, snapshot.board, skipPositions);
 
     // 3. כל הכלים בתנועה — אינטרפולציה
     for (const auto& motion : arbiter.motions()) {
@@ -58,22 +97,26 @@ void Renderer::render_frame(Img& screen, const GameEngine& engine,
     }
 
     // 4. Overlay מצב המתנה
-    if (engine.state() == GameState::Waiting) {
+    if (snapshot.state == GameState::Waiting) {
         draw_waiting_overlay(screen);
     }
 
     // 5. Overlay סיום משחק
-    if (engine.state() == GameState::GameOver) {
-        draw_gameover_overlay(screen, engine);
+    if (snapshot.state == GameState::GameOver) {
+        draw_gameover_overlay(screen, snapshot);
     }
 
     // 6. סימון בחירה
-    if (engine.state() == GameState::Playing) {
-        const auto& sel = engine.selected();
+    if (snapshot.state == GameState::Playing) {
+        const auto& sel = snapshot.selectedPos;
         if (sel.has_value()) {
             draw_selection_marker(screen, *sel, m_cellWidth, m_cellHeight);
         }
     }
+
+    // 7. תיעוד חותמות זמן וציור פאנלי היסטוריית מהלכים
+    capture_timestamps(snapshot.moveHistory);
+    draw_move_history(screen, snapshot.moveHistory);
 }
 
 // ─────────────────────────────────────────────
@@ -86,9 +129,9 @@ void Renderer::draw_motion_piece(Img& screen, const Motion& motion) {
         : 1.0;
     if (progress > 1.0) progress = 1.0;
 
-    double fromX = motion.from.col * m_cellWidth  + m_cellWidth  / 2.0;
+    double fromX = motion.from.col * m_cellWidth  + m_cellWidth  / 2.0 + m_panelWidth;
     double fromY = motion.from.row * m_cellHeight + m_cellHeight / 2.0;
-    double toX   = motion.to.col   * m_cellWidth  + m_cellWidth  / 2.0;
+    double toX   = motion.to.col   * m_cellWidth  + m_cellWidth  / 2.0 + m_panelWidth;
     double toY   = motion.to.row   * m_cellHeight + m_cellHeight / 2.0;
 
     int drawX = static_cast<int>(fromX + (toX - fromX) * progress - m_cellWidth  / 2.0);
@@ -128,7 +171,7 @@ void Renderer::draw_waiting_overlay(Img& screen) {
 // ─────────────────────────────────────────────
 // draw_gameover_overlay
 // ─────────────────────────────────────────────
-void Renderer::draw_gameover_overlay(Img& screen, const GameEngine& engine) {
+void Renderer::draw_gameover_overlay(Img& screen, const GameSnapshot& snapshot) {
     auto& frame = screen.get_mat();
 
     // רקע חצי-שקוף
@@ -154,7 +197,7 @@ void Renderer::draw_gameover_overlay(Img& screen, const GameEngine& engine) {
                 cv::Scalar(255, 255, 255), thickness, cv::LINE_AA);
 
     // Winner
-    auto winner = engine.winner();
+    auto winner = snapshot.winner;
     if (winner.has_value()) {
         std::string winnerText = (*winner == PieceColor::White)
             ? "White Wins!" : "Black Wins!";
@@ -183,9 +226,100 @@ void Renderer::draw_gameover_overlay(Img& screen, const GameEngine& engine) {
 // ─────────────────────────────────────────────
 void Renderer::draw_selection_marker(Img& screen, Position pos,
                                       int cellW, int cellH) {
-    int x = pos.col * cellW;
+    int x = pos.col * cellW + m_panelWidth;
     int y = pos.row * cellH;
     cv::rectangle(screen.get_mat(),
                   cv::Rect(x, y, cellW, cellH),
                   cv::Scalar(0, 255, 0), 3);
+}
+
+// ─────────────────────────────────────────────
+// draw_move_history — פאנלים צדדיים
+// ─────────────────────────────────────────────
+void Renderer::draw_move_history(Img& screen, const std::vector<MoveRecord>& history) {
+    if (m_panelWidth <= 0) return;
+
+    int boardW = m_boardImage.get_mat().cols;
+
+    // פאנל שמאלי — מהלכי שחור
+    draw_single_panel(screen, history, PieceColor::Black,
+                      0, m_panelWidth);
+
+    // פאנל ימני — מהלכי לבן
+    draw_single_panel(screen, history, PieceColor::White,
+                      m_panelWidth + boardW, m_panelWidth);
+}
+
+// ─────────────────────────────────────────────
+// draw_single_panel — כתיבת פאנל בודד
+// ─────────────────────────────────────────────
+void Renderer::draw_single_panel(Img& screen,
+                                  const std::vector<MoveRecord>& allMoves,
+                                  PieceColor panelColor,
+                                  int panelX, int panelWidth) {
+    auto& frame = screen.get_mat();
+
+    // סינון מהלכים לפי צבע
+    std::vector<int> indices; // אינדקסים ב-allMoves השייכים לצבע זה
+    for (size_t i = 0; i < allMoves.size(); ++i) {
+        if (allMoves[i].player == panelColor) {
+            indices.push_back(static_cast<int>(i));
+        }
+    }
+
+    if (indices.empty()) return;
+
+    int lineHeight = 20;
+    int headerHeight = 30;
+    int startY = 10;
+    int paddingX = 6;
+
+    // כותרת
+    std::string header = (panelColor == PieceColor::White) ? "WHITE" : "BLACK";
+    cv::Scalar headerColor = (panelColor == PieceColor::White)
+        ? cv::Scalar(220, 220, 220)
+        : cv::Scalar(180, 180, 180);
+    cv::putText(frame, header,
+                cv::Point(panelX + paddingX, startY + 18),
+                cv::FONT_HERSHEY_SIMPLEX, 0.55, headerColor, 2, cv::LINE_AA);
+
+    // קו הפרדה מתחת לכותרת
+    cv::line(frame,
+             cv::Point(panelX + paddingX, startY + headerHeight),
+             cv::Point(panelX + panelWidth - paddingX, startY + headerHeight),
+             cv::Scalar(80, 80, 80), 1, cv::LINE_AA);
+
+    // חישוב כמה מהלכים נכנסים
+    int availableHeight = frame.rows - (startY + headerHeight + 8);
+    int maxVisible = availableHeight / lineHeight;
+    if (maxVisible < 1) maxVisible = 1;
+
+    // הצג את המהלכים האחרונים בלבד
+    int startIdx = std::max(0, static_cast<int>(indices.size()) - maxVisible);
+
+    for (int i = startIdx; i < static_cast<int>(indices.size()); ++i) {
+        int row = i - startIdx;
+        int y = startY + headerHeight + 8 + row * lineHeight + 14;
+
+        int globalIdx = indices[i];
+        const MoveRecord& rec = allMoves[globalIdx];
+
+        // תו אלגברי
+        std::string notation = to_algebraic(rec);
+
+        // חותמת זמן (אם קיימת)
+        std::string displayLine = notation;
+        if (globalIdx < static_cast<int>(m_moveTimestamps.size())) {
+            displayLine += "  " + m_moveTimestamps[globalIdx];
+        }
+
+        // צבע טקסט: אפור בהיר
+        cv::Scalar textColor = (panelColor == PieceColor::White)
+            ? cv::Scalar(210, 210, 210)
+            : cv::Scalar(170, 170, 170);
+
+        cv::putText(frame, displayLine,
+                    cv::Point(panelX + paddingX, y),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.4, textColor, 1, cv::LINE_AA);
+    }
 }

@@ -42,7 +42,7 @@ SpriteAnimFrames& PieceRenderer::get_frames(
     frames.is_loop = cfg.is_loop;
 
     // Load 1.png, 2.png, ... until missing
-    std::string stateDir = m_rootDir + "/" + code + "/states/" + stateName;
+    std::string stateDir = m_rootDir + "/" + code + "/states/" + stateName + "/sprites";
     for (int i = 1; ; ++i) {
         fs::path spritePath = fs::path(stateDir) / (std::to_string(i) + ".png");
         if (!fs::exists(spritePath)) break;
@@ -137,7 +137,7 @@ void PieceRenderer::draw_piece(Img& screen, const Piece& piece) {
     int idx = anim.currentIndex;
     if (idx >= frames.frameCount) idx = frames.frameCount - 1;
 
-    int x = piece.get_pos().col * m_cellWidth;
+    int x = piece.get_pos().col * m_cellWidth + m_offsetX;
     int y = piece.get_pos().row * m_cellHeight;
 
     frames.sprites[idx].draw_on(screen, x, y);

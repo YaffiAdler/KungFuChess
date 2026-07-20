@@ -1,4 +1,5 @@
 #include "Window.h"
+#include "../logic/Model/GameEngine.h"
 #include <opencv2/highgui.hpp>
 #include <iostream>
 #include <chrono>
@@ -37,6 +38,9 @@ Window::~Window() {
 // ─────────────────────────────────────────────
 void Window::set_engine(GameEngine* engine) {
     m_engine = engine;
+    if (m_engine) {
+        m_controller.set_engine(m_engine);
+    }
 }
 
 // ─────────────────────────────────────────────
@@ -48,15 +52,21 @@ void Window::run() {
         return;
     }
 
-    // אתחול Renderer — טוען לוח ומתאים גדלי תאים
-    m_renderer.init(*m_engine);
+    // אתחול Renderer — טוען לוח ומתאים גדלי תאים + פאנלים
+    {
+        GameSnapshot initSnapshot = m_engine->snapshot();
+        m_renderer.init(initSnapshot, m_config.sidePanelWidth);
+    }
 
     // חלון + callback עם userdata = &m_input
     cv::namedWindow(m_windowName, cv::WINDOW_NORMAL);
     cv::setMouseCallback(m_windowName, mouse_callback, &m_input);
 
     // ציור התחלתי
-    m_renderer.render_frame(m_screen, *m_engine, m_controller.arbiter());
+    {
+        GameSnapshot initialSnapshot = m_engine->snapshot();
+        m_renderer.render_frame(m_screen, initialSnapshot, m_controller.arbiter());
+    }
     cv::imshow(m_windowName, m_screen.get_mat());
 
     // ═══ לולאה ראשית ═══
@@ -74,19 +84,20 @@ void Window::run() {
         if (deltaMs < 1) deltaMs = 1;  // floor safeguard
 
         // ── 1. Tick — קידום זמן תנועה + state machines + אנימציה ──
-        m_controller.tick(deltaMs, *m_engine);
+        m_controller.tick(deltaMs);
         m_renderer.tick_animations(deltaMs);
 
         // ── 2. קלט — מקלדת ──
-        if (!m_input.process_key(key, *m_engine)) {
+        if (!m_input.process_key(key)) {
             break;  // ESC / q
         }
 
         // ── 3. קלט — עכבר ──
-        m_input.process_click(*m_engine);
+        m_input.process_click();
 
-        // ── 4. ציור ──
-        m_renderer.render_frame(m_screen, *m_engine, m_controller.arbiter());
+        // ── 4. ציור — בונים snapshot מה-engine ──
+        GameSnapshot snapshot = m_engine->snapshot();
+        m_renderer.render_frame(m_screen, snapshot, m_controller.arbiter());
         cv::imshow(m_windowName, m_screen.get_mat());
     }
 }

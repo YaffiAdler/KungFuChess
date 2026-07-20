@@ -36,6 +36,7 @@ public:
     PieceRenderer(const std::string& piecesRootDir, int cellWidth, int cellHeight);
 
     void set_cell_size(int width, int height);
+    void set_offset_x(int offsetX) noexcept { m_offsetX = offsetX; }
 
     /// קידום אנימציות — מחליף sprite index לפי time elapsed
     void advance_animations(int deltaMs);
@@ -72,4 +73,5 @@ private:
     std::string m_rootDir;
     int m_cellWidth;
     int m_cellHeight;
+    int m_offsetX = 0;
 };
