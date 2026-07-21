@@ -33,10 +33,24 @@ Window::~Window() {
 }
 
 // ─────────────────────────────────────────────
-//  set_engine
+//  set_engine — מעביר גם ל-Controller
 // ─────────────────────────────────────────────
 void Window::set_engine(GameEngine* engine) {
     m_engine = engine;
+    m_controller.set_engine(engine);
+}
+
+// ─────────────────────────────────────────────
+//  build_snapshot — בונה GameSnapshot ממצב המערכת
+// ─────────────────────────────────────────────
+GameSnapshot Window::build_snapshot() const {
+    return m_snapshotBuilder.build(
+        m_engine->board(),
+        m_controller.arbiter(),
+        m_engine->selected(),
+        m_engine->state(),
+        m_engine->current_turn(),
+        m_engine->winner());
 }
 
 // ─────────────────────────────────────────────
@@ -49,14 +63,20 @@ void Window::run() {
     }
 
     // אתחול Renderer — טוען לוח ומתאים גדלי תאים
-    m_renderer.init(*m_engine);
+    {
+        auto initSnap = build_snapshot();
+        m_renderer.init(initSnap);
+    }
 
     // חלון + callback עם userdata = &m_input
     cv::namedWindow(m_windowName, cv::WINDOW_NORMAL);
     cv::setMouseCallback(m_windowName, mouse_callback, &m_input);
 
     // ציור התחלתי
-    m_renderer.render_frame(m_screen, *m_engine, m_controller.arbiter());
+    {
+        auto snap = build_snapshot();
+        m_renderer.render_frame(m_screen, snap);
+    }
     cv::imshow(m_windowName, m_screen.get_mat());
 
     // ═══ לולאה ראשית ═══
@@ -74,19 +94,22 @@ void Window::run() {
         if (deltaMs < 1) deltaMs = 1;  // floor safeguard
 
         // ── 1. Tick — קידום זמן תנועה + state machines + אנימציה ──
-        m_controller.tick(deltaMs, *m_engine);
+        m_controller.tick(deltaMs);
         m_renderer.tick_animations(deltaMs);
 
         // ── 2. קלט — מקלדת ──
-        if (!m_input.process_key(key, *m_engine)) {
+        if (!m_input.process_key(key)) {
             break;  // ESC / q
         }
 
         // ── 3. קלט — עכבר ──
-        m_input.process_click(*m_engine);
+        m_input.process_click();
 
-        // ── 4. ציור ──
-        m_renderer.render_frame(m_screen, *m_engine, m_controller.arbiter());
+        // ── 4. ציור — בונים Snapshot ומציירים ממנו ──
+        {
+            auto snap = build_snapshot();
+            m_renderer.render_frame(m_screen, snap);
+        }
         cv::imshow(m_windowName, m_screen.get_mat());
     }
 }

@@ -1,7 +1,5 @@
 #pragma once
-#include "../logic/Model/Piece.h"
-#include "../logic/Model/Board.h"
-#include "../logic/Model/Position.h"
+#include "../logic/Engine/GameSnapshot.h"   // PieceInfo, GameSnapshot, Position
 #include "img.hpp"
 #include <string>
 #include <unordered_map>
@@ -31,6 +29,8 @@ struct AnimState final {
 /// טעינה וציור של כלי שחמט על המסך עם אנימציית Sprite.
 /// Sprite frames SHARED across all pieces of same type+state.
 /// Animation index is PER CELL+STATE — each piece runs independently.
+///
+/// מקבל רק PieceInfo (DTO) — אינו נוגע ב-Piece, Board, או כל אובייקט Domain אחר.
 class PieceRenderer final {
 public:
     PieceRenderer(const std::string& piecesRootDir, int cellWidth, int cellHeight);
@@ -41,15 +41,14 @@ public:
     void advance_animations(int deltaMs);
 
     /// ציור כלי בודד לפי מיקום לוגי
-    void draw_piece(Img& screen, const Piece& piece);
+    void draw_piece(Img& screen, const PieceInfo& info);
 
     /// ציור כלי במיקום פיקסלים חופשי (עבור אינטרפולציה)
-    void draw_piece_at(Img& screen, const Piece& piece, int x, int y);
+    void draw_piece_at(Img& screen, const PieceInfo& info, int x, int y);
 
-    /// ציור כל הכלים מהלוח על המסך
-    /// @param skipPositions סט מיקומים לדלג עליהם (כלים בתנועה — יצוירו ע"י draw_motion_piece)
-    void draw_all_pieces(Img& screen, const Board& board,
-                         const std::unordered_set<Position>& skipPositions);
+    /// ציור כל הכלים מה-snapshot על המסך.
+    /// מדלג אוטומטית על תאי מקור של כלים בתנועה (motion.from).
+    void draw_all_pieces(Img& screen, const GameSnapshot& snapshot);
 
 private:
     /// מפתח אנימציה: "row,col/stateName"

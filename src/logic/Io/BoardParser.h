@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Board.h"
+#include "../Model/Board.h"
 #include <istream>
 #include <string>
 #include <optional>

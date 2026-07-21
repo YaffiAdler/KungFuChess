@@ -1,5 +1,5 @@
 #include "PieceRules.h"
-#include "PieceTypeRegistry.h"
+#include "../Model/PieceTypeRegistry.h"
 #include "MovementRule.h"
 #include <cstdlib> // abs
 

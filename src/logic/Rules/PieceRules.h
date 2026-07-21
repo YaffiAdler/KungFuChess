@@ -1,6 +1,6 @@
 #pragma once
-#include "Board.h"
-#include "Position.h"
+#include "../Model/Board.h"
+#include "../Model/Position.h"
 
 struct MovementRule;
 

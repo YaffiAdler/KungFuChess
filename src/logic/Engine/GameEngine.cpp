@@ -1,5 +1,6 @@
 #include "GameEngine.h"
-#include "RuleEngine.h"
+#include "../Rules/RuleEngine.h"
+
 
 // ─────────────────────────────────────────────
 // Constructor
@@ -192,30 +193,4 @@ MoveResult GameEngine::move_selected_to(Position target) {
 
     return {result.success, result.success ? "ok" : "move_failed",
             result.capture, result.gameOver, false};
-}
-
-// ─────────────────────────────────────────────
-// snapshot
-// ─────────────────────────────────────────────
-GameSnapshot GameEngine::snapshot() const {
-    return GameSnapshot{
-        m_board,
-        m_selectedPos,
-        {},  // arbiterMotions — empty; Controller/Window fills from arbiter
-        m_gameClock,
-        m_currentTurn
-    };
-}
-
-// ─────────────────────────────────────────────
-// restore
-// ─────────────────────────────────────────────
-void GameEngine::restore(const GameSnapshot& snap) {
-    m_board = snap.board;
-    m_selectedPos = snap.selectedPos;
-    m_gameClock = snap.gameClock;
-    m_currentTurn = snap.currentTurn;
-    m_state = GameState::Playing;
-    m_winner.reset();
-    m_jumpingPos.reset();
 }

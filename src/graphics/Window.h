@@ -1,6 +1,7 @@
 #pragma once
 
-#include "../logic/Model/GameConfig.h"
+#include "../logic/Engine/GameConfig.h"
+#include "../logic/Engine/SnapshotBuilder.h"
 #include "../logic/Controller/Controller.h"
 #include "Renderer.h"
 #include "InputHandler.h"
@@ -15,6 +16,7 @@ class GameEngine;
 /// לקשר בין InputHandler ↔ Controller ↔ Renderer ↔ GameEngine,
 /// ולתאם ציור מחדש בכל איטרציה.
 ///
+/// מחזיק SnapshotBuilder — בונה GameSnapshot ממצב המערכת בכל פריים.
 /// אינו מכיל לוגיקת ציור (Renderer) או לוגיקת קלט (InputHandler → Controller).
 class Window final {
 public:
@@ -31,11 +33,15 @@ public:
     static void mouse_callback(int event, int x, int y, int flags, void* userdata);
 
 private:
-    GameConfig   m_config;
-    Img          m_screen;        // buffer המסך
-    Renderer     m_renderer;
-    Controller   m_controller;
-    InputHandler m_input;
-    GameEngine*  m_engine = nullptr;
-    std::string  m_windowName;
+    /// בניית GameSnapshot מהמצב הנוכחי של המנוע + הארביטר
+    GameSnapshot build_snapshot() const;
+
+    GameConfig      m_config;
+    Img             m_screen;        // buffer המסך
+    Renderer        m_renderer;
+    Controller      m_controller;
+    InputHandler    m_input;
+    SnapshotBuilder m_snapshotBuilder;
+    GameEngine*     m_engine = nullptr;
+    std::string     m_windowName;
 };

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Piece.h"
+#include "../Model/Piece.h"
 
 /// טיפול בקידום רגלי — Pure logic, no side effects.
 /// בודק האם כלי הוא רגלי שהגיע לשורה האחרונה ומקדם למלכה.

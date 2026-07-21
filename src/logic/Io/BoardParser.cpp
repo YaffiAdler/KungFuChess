@@ -1,5 +1,5 @@
 #include "BoardParser.h"
-#include "PieceFactory.h"
+#include "../Model/PieceFactory.h"
 #include <sstream>
 #include <stdexcept>
 

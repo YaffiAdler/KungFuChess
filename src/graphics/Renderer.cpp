@@ -1,10 +1,13 @@
 #include "Renderer.h"
-#include "../logic/Model/PieceColor.h"
 #include <opencv2/imgproc.hpp>
 
 namespace {
 
-std::string board_image_path() { return "src/graphics/board.png"; }
+constexpr const char* kWaitingPrompt    = "Press ENTER to start";
+constexpr const char* kGameOverTitle    = "GAME OVER";
+constexpr const char* kWhiteWins        = "White Wins!";
+constexpr const char* kBlackWins        = "Black Wins!";
+constexpr const char* kRestartHint      = "Press ENTER to restart";
 
 } // anonymous namespace
 
@@ -24,168 +27,210 @@ Renderer::Renderer(const std::string& boardImagePath,
 // ─────────────────────────────────────────────
 // init — טעינת לוח + התאמת גדלי תאים
 // ─────────────────────────────────────────────
-void Renderer::init(const GameEngine& engine) {
+void Renderer::init(const GameSnapshot& snapshot) {
     int boardW = m_boardImage.get_mat().cols;
     int boardH = m_boardImage.get_mat().rows;
-    int rows = engine.board().rows();
-    int cols = engine.board().cols();
+    int rows   = snapshot.boardRows;
+    int cols   = snapshot.boardCols;
+
+    // Validate — prevent division by zero
+    if (rows <= 0 || cols <= 0) return;
 
     m_cellWidth  = boardW / cols;
     m_cellHeight = boardH / rows;
     m_pieceRenderer.set_cell_size(m_cellWidth, m_cellHeight);
 }
 
+// ═══════════════════════════════════════════════════
+// render_frame — pipeline
+// ═══════════════════════════════════════════════════
+void Renderer::render_frame(Img& screen, const GameSnapshot& snapshot) {
+    draw_board(screen);
+    draw_pieces(screen, snapshot);
+    draw_animations(screen, snapshot);
+    draw_state_overlay(screen, snapshot);
+    draw_selection(screen, snapshot);
+}
+
 // ─────────────────────────────────────────────
-// render_frame — ציור פריים שלם (רב-תנועתי)
+// draw_board — העתקת תמונת הלוח למסך
 // ─────────────────────────────────────────────
-void Renderer::render_frame(Img& screen, const GameEngine& engine,
-                             const RealTimeArbiter& arbiter) {
-    // 0. ניקוי מסך — העתקת תמונת הלוח (מוחק ציור קודם)
+void Renderer::draw_board(Img& screen) {
     m_boardImage.get_mat().copyTo(screen.get_mat());
+}
 
-    // 1. בניית סט מיקומים לדילוג (כלים בתנועה — מקורות)
-    std::unordered_set<Position> skipPositions;
-    for (const auto& motion : arbiter.motions()) {
-        skipPositions.insert(motion.from);
-    }
+// ─────────────────────────────────────────────
+// draw_pieces — ציור כלים מהלוח
+// ─────────────────────────────────────────────
+void Renderer::draw_pieces(Img& screen, const GameSnapshot& snapshot) {
+    m_pieceRenderer.draw_all_pieces(screen, snapshot);
+}
 
-    // 2. ציור כלים מהלוח (מדלג על תאי מקור של כלים בתנועה)
-    m_pieceRenderer.draw_all_pieces(screen, engine.board(), skipPositions);
-
-    // 3. כל הכלים בתנועה — אינטרפולציה
-    for (const auto& motion : arbiter.motions()) {
+// ─────────────────────────────────────────────
+// draw_animations — ציור כלים בתנועה (אינטרפולציה)
+// ─────────────────────────────────────────────
+void Renderer::draw_animations(Img& screen, const GameSnapshot& snapshot) {
+    for (const auto& motion : snapshot.motions) {
         draw_motion_piece(screen, motion);
-    }
-
-    // 4. Overlay מצב המתנה
-    if (engine.state() == GameState::Waiting) {
-        draw_waiting_overlay(screen);
-    }
-
-    // 5. Overlay סיום משחק
-    if (engine.state() == GameState::GameOver) {
-        draw_gameover_overlay(screen, engine);
-    }
-
-    // 6. סימון בחירה
-    if (engine.state() == GameState::Playing) {
-        const auto& sel = engine.selected();
-        if (sel.has_value()) {
-            draw_selection_marker(screen, *sel, m_cellWidth, m_cellHeight);
-        }
     }
 }
 
 // ─────────────────────────────────────────────
-// draw_motion_piece — אינטרפולציה של כלי בודד בתנועה
+// draw_state_overlay — Overlay מצב Waiting / GameOver
 // ─────────────────────────────────────────────
-void Renderer::draw_motion_piece(Img& screen, const Motion& motion) {
-    // חישוב התקדמות: elapsed / total, clamped [0, 1]
-    double progress = (motion.totalMs > 0)
-        ? static_cast<double>(motion.elapsedMs) / motion.totalMs
-        : 1.0;
-    if (progress > 1.0) progress = 1.0;
+void Renderer::draw_state_overlay(Img& screen, const GameSnapshot& snapshot) {
+    if (snapshot.state == GameState::Waiting) {
+        draw_waiting_overlay(screen);
+    } else if (snapshot.state == GameState::GameOver) {
+        draw_gameover_overlay(screen, snapshot);
+    }
+}
 
-    double fromX = motion.from.col * m_cellWidth  + m_cellWidth  / 2.0;
-    double fromY = motion.from.row * m_cellHeight + m_cellHeight / 2.0;
-    double toX   = motion.to.col   * m_cellWidth  + m_cellWidth  / 2.0;
-    double toY   = motion.to.row   * m_cellHeight + m_cellHeight / 2.0;
+// ─────────────────────────────────────────────
+// draw_selection — סימון תא נבחר
+// ─────────────────────────────────────────────
+void Renderer::draw_selection(Img& screen, const GameSnapshot& snapshot) {
+    if (snapshot.state != GameState::Playing) return;
 
-    int drawX = static_cast<int>(fromX + (toX - fromX) * progress - m_cellWidth  / 2.0);
-    int drawY = static_cast<int>(fromY + (toY - fromY) * progress - m_cellHeight / 2.0);
+    const auto& sel = snapshot.selectedPos;
+    if (sel.has_value()) {
+        draw_selection_marker(screen, *sel);
+    }
+}
 
-    // ציור הכלי במיקום האינטרפולציה
+// ═══════════════════════════════════════════════════
+// Coordinate helpers
+// ═══════════════════════════════════════════════════
+
+std::pair<double, double> Renderer::cell_center(Position pos) const {
+    double cx = pos.col * m_cellWidth  + m_cellWidth  / 2.0;
+    double cy = pos.row * m_cellHeight + m_cellHeight / 2.0;
+    return {cx, cy};
+}
+
+std::pair<int, int> Renderer::cell_top_left(Position pos) const {
+    int x = pos.col * m_cellWidth;
+    int y = pos.row * m_cellHeight;
+    return {x, y};
+}
+
+// ═══════════════════════════════════════════════════
+// draw_motion_piece — אינטרפולציה מ-MotionInfo (DTO)
+// ═══════════════════════════════════════════════════
+
+void Renderer::draw_motion_piece(Img& screen, const MotionInfo& motion) {
+    auto [fromCx, fromCy] = cell_center(motion.from);
+    auto [toCx,   toCy]   = cell_center(motion.to);
+
+    double progress = motion.progress;
+
+    int drawX = static_cast<int>(fromCx + (toCx - fromCx) * progress - m_cellWidth  / 2.0);
+    int drawY = static_cast<int>(fromCy + (toCy - fromCy) * progress - m_cellHeight / 2.0);
+
     m_pieceRenderer.draw_piece_at(screen, motion.piece, drawX, drawY);
 }
 
-// ─────────────────────────────────────────────
-// draw_waiting_overlay
-// ─────────────────────────────────────────────
-void Renderer::draw_waiting_overlay(Img& screen) {
-    cv::Mat& frame = screen.get_mat();
+// ═══════════════════════════════════════════════════
+// Overlay helpers
+// ═══════════════════════════════════════════════════
 
-    // 1. יוצרים עותק זמני של הפריים הנוכחי
+void Renderer::apply_dim_overlay(Img& screen, double dimFactor) {
+    cv::Mat& frame = screen.get_mat();
     cv::Mat original;
     frame.copyTo(original);
 
-    // 2. מערבבים: 90% עוצמה של התמונה המקורית + 10% שקיפות (שחור)
-    cv::addWeighted(original, 0.9,
-                    cv::Mat::zeros(original.size(), original.type()), 0.1,
+    cv::addWeighted(original, 1.0 - dimFactor,
+                    cv::Mat::zeros(original.size(), original.type()), dimFactor,
                     0, frame);
-
-    // 3. טקסט במרכז
-    std::string msg = "Press ENTER to start";
-    int baseline = 0;
-    cv::Size textSize = cv::getTextSize(msg,
-        cv::FONT_HERSHEY_DUPLEX, 1.5, 3, &baseline);
-    cv::Point textOrg((frame.cols - textSize.width) / 2,
-                      (frame.rows + textSize.height) / 2);
-    cv::putText(frame, msg, textOrg,
-                cv::FONT_HERSHEY_DUPLEX, 1.5,
-                cv::Scalar(255, 255, 255), 3, cv::LINE_AA);
 }
 
-// ─────────────────────────────────────────────
-// draw_gameover_overlay
-// ─────────────────────────────────────────────
-void Renderer::draw_gameover_overlay(Img& screen, const GameEngine& engine) {
-    auto& frame = screen.get_mat();
+void Renderer::apply_dark_background(Img& screen, double opacity) {
+    cv::Mat& frame = screen.get_mat();
 
-    // רקע חצי-שקוף
     cv::Mat overlay;
     frame.copyTo(overlay);
     cv::rectangle(overlay,
                   cv::Point(0, 0),
                   cv::Point(frame.cols, frame.rows),
                   cv::Scalar(0, 0, 0), cv::FILLED);
-    cv::addWeighted(overlay, 0.55, frame, 0.45, 0, frame);
 
-    // כותרת Game Over
-    std::string gameOverText = "GAME OVER";
-    double fontSize = 2.5;
-    int thickness = 6;
-    int baseline = 0;
-    cv::Size textSize = cv::getTextSize(gameOverText,
-        cv::FONT_HERSHEY_DUPLEX, fontSize, thickness, &baseline);
-    cv::Point textOrg((frame.cols - textSize.width) / 2,
-                       frame.rows / 2 - 20);
-    cv::putText(frame, gameOverText, textOrg,
-                cv::FONT_HERSHEY_DUPLEX, fontSize,
-                cv::Scalar(255, 255, 255), thickness, cv::LINE_AA);
-
-    // Winner
-    auto winner = engine.winner();
-    if (winner.has_value()) {
-        std::string winnerText = (*winner == PieceColor::White)
-            ? "White Wins!" : "Black Wins!";
-        cv::Size winSize = cv::getTextSize(winnerText.c_str(),
-            cv::FONT_HERSHEY_DUPLEX, 1.8, 4, &baseline);
-        cv::Point winOrg((frame.cols - winSize.width) / 2,
-                          frame.rows / 2 + 60);
-        cv::putText(frame, winnerText, winOrg,
-                    cv::FONT_HERSHEY_DUPLEX, 1.8,
-                    cv::Scalar(255, 215, 0), 4, cv::LINE_AA);
-    }
-
-    // Restart hint
-    std::string restartHint = "Press ENTER to restart";
-    cv::Size hintSize = cv::getTextSize(restartHint,
-        cv::FONT_HERSHEY_SIMPLEX, 0.8, 2, &baseline);
-    cv::Point hintOrg((frame.cols - hintSize.width) / 2,
-                       frame.rows / 2 + 110);
-    cv::putText(frame, restartHint, hintOrg,
-                cv::FONT_HERSHEY_SIMPLEX, 0.8,
-                cv::Scalar(200, 200, 200), 2, cv::LINE_AA);
+    cv::addWeighted(overlay, opacity, frame, 1.0 - opacity, 0, frame);
 }
 
 // ─────────────────────────────────────────────
-// draw_selection_marker
+// draw_waiting_overlay
 // ─────────────────────────────────────────────
-void Renderer::draw_selection_marker(Img& screen, Position pos,
-                                      int cellW, int cellH) {
-    int x = pos.col * cellW;
-    int y = pos.row * cellH;
+void Renderer::draw_waiting_overlay(Img& screen) {
+    apply_dim_overlay(screen, kDimFactor);
+    draw_centered_text(screen, kWaitingPrompt,
+                       kPromptFontSize, kPromptThickness,
+                       cv::Scalar(255, 255, 255));
+}
+
+// ─────────────────────────────────────────────
+// draw_gameover_overlay
+// ─────────────────────────────────────────────
+void Renderer::draw_gameover_overlay(Img& screen, const GameSnapshot& snapshot) {
+    apply_dark_background(screen, kGameOverOpacity);
+
+    // Title
+    draw_centered_text(screen, kGameOverTitle,
+                       kTitleFontSize, kTitleThickness,
+                       cv::Scalar(255, 255, 255), kTitleYOffset);
+
+    // Winner
+    const auto& winner = snapshot.winner;
+    if (winner.has_value()) {
+        const char* winnerText = (*winner == PieceColor::White) ? kWhiteWins : kBlackWins;
+        draw_centered_text(screen, winnerText,
+                           kWinnerFontSize, kWinnerThickness,
+                           cv::Scalar(255, 215, 0), kWinnerYOffset);
+    }
+
+    // Restart hint — uses SIMPLEX (matching original)
+    draw_centered_text(screen, kRestartHint,
+                       kRestartFontSize, kRestartThickness,
+                       cv::Scalar(200, 200, 200), kRestartYOffset,
+                       cv::FONT_HERSHEY_SIMPLEX);
+}
+
+// ═══════════════════════════════════════════════════
+// Text helpers
+// ═══════════════════════════════════════════════════
+
+cv::Size Renderer::get_text_size(const std::string& text,
+                                  double fontSize, int thickness,
+                                  cv::HersheyFonts fontFace) {
+    int baseline = 0;
+    return cv::getTextSize(text, fontFace,
+                           fontSize, thickness, &baseline);
+}
+
+void Renderer::draw_centered_text(Img& screen,
+                                   const std::string& text,
+                                   double fontSize,
+                                   int thickness,
+                                   const cv::Scalar& color,
+                                   int yOffset,
+                                   cv::HersheyFonts fontFace) {
+    cv::Mat& frame = screen.get_mat();
+    cv::Size textSize = get_text_size(text, fontSize, thickness, fontFace);
+
+    int x = (frame.cols - textSize.width) / 2;
+    int y = (frame.rows + textSize.height) / 2 + yOffset;
+
+    cv::putText(frame, text, cv::Point(x, y),
+                fontFace, fontSize,
+                color, thickness, cv::LINE_AA);
+}
+
+// ═══════════════════════════════════════════════════
+// Selection marker
+// ═══════════════════════════════════════════════════
+
+void Renderer::draw_selection_marker(Img& screen, Position pos) {
+    auto [x, y] = cell_top_left(pos);
     cv::rectangle(screen.get_mat(),
-                  cv::Rect(x, y, cellW, cellH),
-                  cv::Scalar(0, 255, 0), 3);
+                  cv::Rect(x, y, m_cellWidth, m_cellHeight),
+                  cv::Scalar(255, 255, 0), kSelectionThickness);
 }

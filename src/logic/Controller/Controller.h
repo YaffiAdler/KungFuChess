@@ -1,8 +1,8 @@
 #pragma once
 #include "PixelMapper.h"
 #include "../Model/Position.h"
-#include "../Model/GameConfig.h"
-#include "../Model/RealTimeArbiter.h"
+#include "../Engine/GameEngine.h"
+#include "../Realtime/RealTimeArbiter.h"
 #include <optional>
 #include <string>
 
@@ -25,19 +25,21 @@ class Controller final {
 public:
     explicit Controller(const GameConfig& config) noexcept;
 
+    /// חיבור ל-GameEngine (נעשה אחרי הבנייה)
+    void set_engine(GameEngine* engine) noexcept { m_engine = engine; }
+
     /// טיפול בקליק עכבר. מחזיר תיאור טקסטואלי של הפעולה (ללוג).
     /// @param x קואורדינטת X של הקליק (פיקסלים)
     /// @param y קואורדינטת Y של הקליק (פיקסלים)
-    /// @param engine מנוע המשחק
     /// @return תיאור הפעולה ("ok", "selected", "deselected", "jump", וכו')
-    [[nodiscard]] std::string handle_click(int x, int y, GameEngine& engine);
+    [[nodiscard]] std::string handle_click(int x, int y);
 
     /// טיפול במקש — ESC/q = צא, ENTER = התחלה/הפעלה מחדש.
     /// @return false = יציאה מהמשחק
-    [[nodiscard]] bool handle_key(int key, GameEngine& engine);
+    [[nodiscard]] bool handle_key(int key);
 
     /// קידום זמן: Arbiter.tick(), GameEngine.tick(), commit_move.
-    void tick(int deltaMs, GameEngine& engine);
+    void tick(int deltaMs);
 
     /// ביטול בחירה נוכחית
     void cancel_selection() noexcept;
@@ -53,4 +55,5 @@ private:
     PixelMapper            m_mapper;
     RealTimeArbiter        m_arbiter;
     std::optional<Position> m_selected;
+    GameEngine*            m_engine = nullptr;
 };

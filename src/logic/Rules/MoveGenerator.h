@@ -1,7 +1,7 @@
 #pragma once
 #include "MovementRule.h"
-#include "Position.h"
-#include "PieceColor.h"
+#include "../Model/Position.h"
+#include "../Model/PieceColor.h"
 #include <vector>
 
 /// SRP: תפקיד יחיד — לייצר מיקומים חוקיים לפי MovementRule.

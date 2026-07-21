@@ -1,6 +1,6 @@
 #pragma once
 #include "../Model/Position.h"
-#include "../Model/GameConfig.h"
+#include "../Engine/GameConfig.h"
 #include <optional>
 
 /// המרת קואורדינטות פיקסלים ← תא לוח.

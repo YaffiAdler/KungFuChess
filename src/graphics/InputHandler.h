@@ -1,7 +1,6 @@
 #pragma once
 
 class Controller;
-class GameEngine;
 
 /// טיפול באירועי קלט — מקלדת ועכבר.
 ///
@@ -13,14 +12,14 @@ public:
 
     /// טיפול במקש מקלדת.
     /// @return true = המשך לולאה, false = צא
-    [[nodiscard]] bool process_key(int key, GameEngine& engine);
+    [[nodiscard]] bool process_key(int key);
 
     /// רישום קליק עכבר (נקרא מ-mouse callback)
     void register_click(int x, int y);
 
     /// טיפול בקליק ממתין, אם יש.
     /// @return true = היה קליק וטופל, false = לא היה קליק
-    [[nodiscard]] bool process_click(GameEngine& engine);
+    [[nodiscard]] bool process_click();
 
     /// איפוס מצב קליקים
     void flush();

@@ -1,5 +1,5 @@
 #include "MoveExecutor.h"
-#include "RuleEngine.h"
+#include "../Rules/RuleEngine.h"
 #include "PromotionHandler.h"
 
 // ─────────────────────────────────────────────

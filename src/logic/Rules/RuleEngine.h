@@ -1,7 +1,7 @@
 #pragma once
-#include "Board.h"
-#include "Position.h"
-#include "PieceColor.h"
+#include "../Model/Board.h"
+#include "../Model/Position.h"
+#include "../Model/PieceColor.h"
 #include <string>
 #include <optional>
 

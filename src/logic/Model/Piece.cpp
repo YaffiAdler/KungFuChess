@@ -1,6 +1,6 @@
 #include "Piece.h"
 #include "PieceTypeRegistry.h"
-#include "MoveGenerator.h"
+#include "../Rules/MoveGenerator.h"
 #include <stdexcept>
 #include <cctype>
 

@@ -1,7 +1,7 @@
 #pragma once
-#include "MovementRule.h"
 #include <string>
 #include <vector>
+#include "../Rules/MovementRule.h"
 
 /// הגדרה של סוג כלי — DATA טהור, ללא קוד.
 /// כל סוג כלי מוגדר על-ידי: מזהה, סימבול, וכללי תנועה.

@@ -1,8 +1,8 @@
 #pragma once
-#include "Position.h"
-#include "Piece.h"
-#include "PieceColor.h"
-#include "Board.h"
+#include "../Model/Position.h"
+#include "../Model/Piece.h"
+#include "../Model/PieceColor.h"
+#include "../Model/Board.h"
 #include <optional>
 #include <vector>
 #include <cstdlib> // abs

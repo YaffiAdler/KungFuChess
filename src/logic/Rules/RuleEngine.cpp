@@ -1,6 +1,6 @@
 #include "RuleEngine.h"
 #include "PieceRules.h"
-#include "PieceTypeRegistry.h"
+#include "../Model/PieceTypeRegistry.h"
 #include <algorithm>
 #include <vector>
 

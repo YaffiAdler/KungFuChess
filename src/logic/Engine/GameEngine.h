@@ -1,12 +1,13 @@
 #pragma once
-#include "Board.h"
+#include "../Model/Board.h"
 #include "GameConfig.h"
-#include "GameSnapshot.h"
+#include "../Model/GameState.h"
 #include "MoveExecutor.h"
-#include "PieceStateMachine.h"
-#include "Position.h"
-#include "PieceColor.h"
-#include "RuleEngine.h"
+#include "../Model/PieceStateMachine.h"
+#include "../Model/Position.h"
+#include "../Model/PieceColor.h"
+#include "../Rules/RuleEngine.h"
+#include "../Realtime/RealTimeArbiter.h"
 #include <optional>
 #include <string>
 #include <chrono>
@@ -18,13 +19,6 @@ struct MoveResult final {
     bool capture = false;      // האם המהלך כלל הכאה
     bool gameOver = false;     // המשחק הסתיים אחרי המהלך
     bool motionStarted = false; // true = Arbiter התחיל תנועה (הלוח עוד לא עודכן)
-};
-
-/// מצבי המשחק הראשיים
-enum class GameState {
-    Waiting,   // טרם התחיל — כלים מוצגים, ממתינים לפקודת התחלה
-    Playing,   // משחק פעיל
-    GameOver   // הסתיים
 };
 
 /// ניהול מצב המשחק — Application Service / Orchestrator.
@@ -83,10 +77,6 @@ public:
     // ─── סיום משחק ───
     [[nodiscard]] bool is_game_over() const noexcept { return m_state == GameState::GameOver; }
     [[nodiscard]] std::optional<PieceColor> winner() const noexcept { return m_winner; }
-
-    // ─── Snapshots ───
-    [[nodiscard]] GameSnapshot snapshot() const;
-    void restore(const GameSnapshot& snap);
 
 private:
     Board              m_board;

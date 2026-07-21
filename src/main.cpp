@@ -1,7 +1,7 @@
 #include "logic/Model/Board.h"
-#include "logic/Model/BoardParser.h"
-#include "logic/Model/GameEngine.h"
-#include "logic/Model/GameConfig.h"
+#include "logic/Io/BoardParser.h"
+#include "logic/Engine/GameEngine.h"
+#include "logic/Engine/GameConfig.h"
 #include "logic/Model/PieceTypeRegistry.h"
 #include "graphics/Window.h"
 #include <iostream>

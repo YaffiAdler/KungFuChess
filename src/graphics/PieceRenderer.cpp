@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <iostream>
 #include <fstream>
+#include <unordered_set>
 
 namespace fs = std::filesystem;
 
@@ -42,7 +43,7 @@ SpriteAnimFrames& PieceRenderer::get_frames(
     frames.is_loop = cfg.is_loop;
 
     // Load 1.png, 2.png, ... until missing
-    std::string stateDir = m_rootDir + "/" + code + "/states/" + stateName;
+    std::string stateDir = m_rootDir + "/" + code + "/states/" + stateName + "/sprites";
     for (int i = 1; ; ++i) {
         fs::path spritePath = fs::path(stateDir) / (std::to_string(i) + ".png");
         if (!fs::exists(spritePath)) break;
@@ -122,23 +123,22 @@ void PieceRenderer::set_cell_size(int width, int height) {
 }
 
 // ─────────────────────────────────────────────
-// draw_piece — draw using shared frames + per-instance index
+// draw_piece — draw using PieceInfo (DTO)
 // ─────────────────────────────────────────────
-void PieceRenderer::draw_piece(Img& screen, const Piece& piece) {
-    std::string code = piece.get_code();
-    std::string stateName = state_to_string(piece.get_state());
+void PieceRenderer::draw_piece(Img& screen, const PieceInfo& info) {
+    std::string stateName = state_to_string(info.state);
 
-    SpriteAnimFrames& frames = get_frames(code, stateName);
+    SpriteAnimFrames& frames = get_frames(info.code, stateName);
     if (frames.sprites.empty()) return;
 
-    AnimState& anim = get_anim_state(piece.get_pos(), stateName, frames);
+    AnimState& anim = get_anim_state(info.pos, stateName, frames);
 
     // Clamp index in case frameCount changed (shouldn't, but safe)
     int idx = anim.currentIndex;
     if (idx >= frames.frameCount) idx = frames.frameCount - 1;
 
-    int x = piece.get_pos().col * m_cellWidth;
-    int y = piece.get_pos().row * m_cellHeight;
+    int x = info.pos.col * m_cellWidth;
+    int y = info.pos.row * m_cellHeight;
 
     frames.sprites[idx].draw_on(screen, x, y);
 }
@@ -146,15 +146,14 @@ void PieceRenderer::draw_piece(Img& screen, const Piece& piece) {
 // ─────────────────────────────────────────────
 // draw_piece_at — draw at arbitrary pixel coords (interpolation)
 // ─────────────────────────────────────────────
-void PieceRenderer::draw_piece_at(Img& screen, const Piece& piece,
+void PieceRenderer::draw_piece_at(Img& screen, const PieceInfo& info,
                                    int x, int y) {
-    std::string code = piece.get_code();
-    std::string stateName = state_to_string(piece.get_state());
+    std::string stateName = state_to_string(info.state);
 
-    SpriteAnimFrames& frames = get_frames(code, stateName);
+    SpriteAnimFrames& frames = get_frames(info.code, stateName);
     if (frames.sprites.empty()) return;
 
-    AnimState& anim = get_anim_state(piece.get_pos(), stateName, frames);
+    AnimState& anim = get_anim_state(info.pos, stateName, frames);
 
     int idx = anim.currentIndex;
     if (idx >= frames.frameCount) idx = frames.frameCount - 1;
@@ -163,18 +162,18 @@ void PieceRenderer::draw_piece_at(Img& screen, const Piece& piece,
 }
 
 // ─────────────────────────────────────────────
-// draw_all_pieces — all board pieces, skipping positions in set
+// draw_all_pieces — all pieces from snapshot,
+// skipping source positions of pieces in motion
 // ─────────────────────────────────────────────
-void PieceRenderer::draw_all_pieces(Img& screen, const Board& board,
-                                     const std::unordered_set<Position>& skipPositions) {
-    for (int r = 0; r < board.rows(); ++r) {
-        for (int c = 0; c < board.cols(); ++c) {
-            if (skipPositions.count(Position{r, c}) > 0) continue;
+void PieceRenderer::draw_all_pieces(Img& screen, const GameSnapshot& snapshot) {
+    // בניית סט מיקומי מקור של כלים בתנועה (לדילוג)
+    std::unordered_set<Position> skipPositions;
+    for (const auto& motion : snapshot.motions) {
+        skipPositions.insert(motion.from);
+    }
 
-            const auto& cell = board.at(r, c);
-            if (cell.has_value()) {
-                draw_piece(screen, *cell);
-            }
-        }
+    for (const auto& info : snapshot.pieces) {
+        if (skipPositions.count(info.pos) > 0) continue;
+        draw_piece(screen, info);
     }
 }

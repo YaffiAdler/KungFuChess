@@ -2,7 +2,7 @@
 #include "Piece.h"
 #include "PieceStateConfig.h"
 #include "Position.h"
-#include "GameConfig.h"
+#include "../Engine/GameConfig.h"
 #include <string>
 #include <unordered_map>
 #include <vector>
